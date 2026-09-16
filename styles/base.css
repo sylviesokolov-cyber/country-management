@@ -1,0 +1,173 @@
+/* ============================================================================
+ * styles/base.css — design tokens, reset, and the fixed app shell.
+ * ----------------------------------------------------------------------------
+ * Two jobs:
+ *   1. Define the whole visual language as CSS custom properties, ONCE, so new
+ *      features can only use colours and spacings that already exist.
+ *   2. Build a phone app shell that cannot scroll, bounce, zoom or shift.
+ *
+ * The shell rules look fussy but each one kills a specific mobile-browser
+ * annoyance. They are commented individually — don't delete them casually.
+ * ========================================================================== */
+
+/* ---------------------------------------------------------------------------
+ * 1. DESIGN TOKENS
+ * ------------------------------------------------------------------------ */
+:root {
+  /* --- surfaces & text --- */
+  --c-bg:          #0d1117;
+  --c-surface:     #161b22;
+  --c-surface-2:   #1c2430;
+  --c-surface-3:   #26303d;
+  --c-line:        #2d3846;
+  --c-line-strong: #3d4b5c;
+  --c-text:        #e6edf3;
+  --c-text-dim:    #8b98a8;
+  --c-text-faint:  #5d6b7a;
+
+  /* --- resources (each resource keeps one colour everywhere, forever) --- */
+  --c-treasury:    #e3b341;
+  --c-capital:     #a78bfa;
+  --c-manpower:    #58c98a;
+  --c-mandate:     #ff8558;
+  --c-accent:      #58a6ff;
+  --c-danger:      #f0563e;
+
+  /* --- region stability bands (map fills) --- */
+  --c-band-secure:   #2f9e6a;
+  --c-band-stable:   #74a83f;
+  --c-band-strained: #c99a34;
+  --c-band-unrest:   #cd6f30;
+  --c-band-crisis:   #b03a3a;
+
+  /* --- spacing scale: use these, never raw pixels --- */
+  --s-1: 4px;
+  --s-2: 8px;
+  --s-3: 12px;
+  --s-4: 16px;
+  --s-5: 24px;
+  --s-6: 32px;
+
+  /* --- radii --- */
+  --r-sm: 6px;
+  --r-md: 10px;
+  --r-lg: 16px;
+
+  /* --- type scale: clamp() so text stays readable on a 360px phone and
+         doesn't look comically small on a tablet or desktop browser --- */
+  --f-xs:  clamp(10px, 2.6vw, 12px);
+  --f-sm:  clamp(12px, 3.1vw, 14px);
+  --f-md:  clamp(14px, 3.7vw, 16px);
+  --f-lg:  clamp(17px, 4.6vw, 20px);
+  --f-xl:  clamp(21px, 5.8vw, 26px);
+
+  /* --- minimum comfortable touch target (Apple/Google both say 44px) --- */
+  --tap: 44px;
+
+  --font-ui: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  /* Tabular numerals stop resource counters from jittering as digits change */
+  --font-num: ui-monospace, 'SF Mono', 'Roboto Mono', Menlo, monospace;
+}
+
+/* ---------------------------------------------------------------------------
+ * 2. RESET + MOBILE HARDENING
+ * ------------------------------------------------------------------------ */
+*, *::before, *::after { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  /* Kill the rubber-band / pull-to-refresh bounce. Without this, dragging on
+     the map drags the whole page and the layout appears to "come loose". */
+  overscroll-behavior: none;
+  /* The page itself never scrolls. Only panels scroll, and they opt in. */
+  overflow: hidden;
+  /* Stop iOS from silently enlarging text in landscape. */
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  background: var(--c-bg);
+  color: var(--c-text);
+  font-family: var(--font-ui);
+  font-size: var(--f-md);
+  line-height: 1.4;
+  /* This is a game, not a document: nothing should be selectable, and a long
+     press must not pop up the copy/paste bubble mid-tap. */
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+  /* Removes the grey flash Chrome/Safari paint over tapped elements. */
+  -webkit-tap-highlight-color: transparent;
+}
+
+button {
+  font: inherit;
+  color: inherit;
+  background: none;
+  border: none;
+  /* `manipulation` disables double-tap-to-zoom, which otherwise adds a ~300ms
+     delay before a tap registers and makes the game feel laggy. */
+  touch-action: manipulation;
+  user-select: none;
+  -webkit-user-select: none;
+  cursor: pointer;
+}
+
+svg { touch-action: manipulation; }
+
+/* ---------------------------------------------------------------------------
+ * 3. THE APP SHELL
+ *    A three-row grid pinned to the viewport: HUD / map / tab bar.
+ *    Because the rows are grid tracks and the middle one is `minmax(0, 1fr)`,
+ *    the top and bottom bars can never be pushed off-screen and the middle
+ *    can never grow the page — the layout is impossible to shift.
+ * ------------------------------------------------------------------------ */
+#app {
+  /* 100dvh = "dynamic viewport height": it tracks the mobile browser's
+     collapsing address bar. Plain 100vh assumes the bar is hidden and leaves a
+     chunk of UI under it. The 100vh line is a fallback for old browsers. */
+  height: 100vh;
+  height: 100dvh;
+  width: 100%;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  grid-template-columns: 100%;
+  /* The map layer positions its panel against this box. */
+  position: relative;
+  overflow: hidden;
+}
+
+/* Safe-area insets: keep the HUDs clear of the notch/dynamic island at the top
+   and the gesture bar at the bottom. These env() values are 0 on devices that
+   don't need them, so they are free. Requires viewport-fit=cover in the
+   viewport meta tag (see index.html) or env() always reports 0. */
+.hud-top {
+  padding-top: calc(var(--s-2) + env(safe-area-inset-top));
+  padding-left: calc(var(--s-3) + env(safe-area-inset-left));
+  padding-right: calc(var(--s-3) + env(safe-area-inset-right));
+}
+
+.hud-bottom {
+  padding-bottom: env(safe-area-inset-bottom);
+  padding-left: env(safe-area-inset-left);
+  padding-right: env(safe-area-inset-right);
+}
+
+/* The ONLY places scrolling is allowed. `-webkit-overflow-scrolling` keeps
+   momentum scrolling on iOS; `overscroll-behavior: contain` stops a scroll
+   that reaches the end of a panel from propagating to the page. */
+.scrollable {
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Respect users who ask for less motion. */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}

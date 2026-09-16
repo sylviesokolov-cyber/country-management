@@ -1,0 +1,147 @@
+# ==============================================================================
+# Build a SIGNED Android App Bundle (.aab) and upload it as a downloadable
+# artifact. Manual trigger only — this never runs on a push.
+#
+# ⚠️  THIS WORKFLOW DOES NOT WORK YET. It is committed now so the release path
+#     is designed in from the start, but it needs PHASE 6 to be done first.
+#
+#     Before this can succeed, the repo must contain:
+#       1. package.json with @capacitor/core + @capacitor/cli + @capacitor/android
+#          (and a committed package-lock.json, or change `npm ci` to `npm install`)
+#       2. capacitor.config.json — with "webDir" pointing at the folder holding
+#          index.html (that is "." for this project) and an appId such as
+#          com.yourname.mandate
+#       3. A committed `android/` folder, created once by `npx cap add android`.
+#          Capacitor's android project is meant to be committed to the repo.
+#
+#     Everything AFTER that — the JDK, the Android SDK, Gradle, signing — is
+#     already handled below and needs no further setup.
+#
+# REQUIRED GITHUB SECRETS (Settings -> Secrets and variables -> Actions):
+#   ANDROID_KEYSTORE_BASE64    your .jks keystore, base64-encoded (see ANDROID.md)
+#   ANDROID_KEYSTORE_PASSWORD  the keystore password
+#   ANDROID_KEY_ALIAS          the key alias inside the keystore
+#   ANDROID_KEY_PASSWORD       the password for that key
+# ==============================================================================
+name: Build signed Android bundle
+
+on:
+  workflow_dispatch:
+    inputs:
+      version_name:
+        description: 'Version name shown in the Play Console (e.g. 0.1.0)'
+        required: false
+        default: '0.1.0'
+      version_code:
+        description: 'Version code — a whole number that must INCREASE with every upload'
+        required: false
+        default: '1'
+
+permissions:
+  contents: read
+
+jobs:
+  bundle:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v4
+
+      # ---------------------------------------------------------------------
+      # Fail early and loudly if Phase 6 hasn't happened yet, rather than
+      # dumping a confusing Gradle stack trace ten minutes in.
+      # ---------------------------------------------------------------------
+      - name: Preflight — is Capacitor set up?
+        run: |
+          missing=0
+          for f in package.json capacitor.config.json android/gradlew; do
+            if [ ! -e "$f" ]; then echo "::error::Missing $f"; missing=1; fi
+          done
+          if [ "$missing" = "1" ]; then
+            echo "::error::Capacitor is not set up yet. See PHASE 6 in TODO.md and the notes at the top of this workflow file."
+            exit 1
+          fi
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      # Installs the Android SDK command-line tools and accepts licences.
+      # Gradle downloads the specific platform/build-tools the project asks for.
+      - name: Set up the Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      # Copies the web app (index.html, src/, styles/, data/) into the native
+      # Android project and updates the native plugins.
+      - name: Capacitor sync
+        run: npx cap sync android
+
+      # ---------------------------------------------------------------------
+      # SIGNING
+      # The keystore is stored as base64 text in a GitHub Secret because
+      # Secrets can only hold text, not binary files. We decode it to a file
+      # that exists only for the life of this runner.
+      # ---------------------------------------------------------------------
+      - name: Restore the keystore from secrets
+        env:
+          KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+        run: |
+          if [ -z "$KEYSTORE_BASE64" ]; then
+            echo "::error::Secret ANDROID_KEYSTORE_BASE64 is not set. See ANDROID.md."
+            exit 1
+          fi
+          echo "$KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/release.jks"
+          echo "Keystore restored ($(stat -c%s "$RUNNER_TEMP/release.jks") bytes)"
+
+      # `-Pandroid.injected.signing.*` are properties the Android Gradle Plugin
+      # understands out of the box, so the release can be signed WITHOUT editing
+      # android/app/build.gradle. (If you later add a signingConfig there, drop
+      # these flags.)
+      - name: Build the release bundle
+        working-directory: android
+        env:
+          KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          VERSION_NAME: ${{ inputs.version_name }}
+          VERSION_CODE: ${{ inputs.version_code }}
+        run: |
+          chmod +x ./gradlew
+          ./gradlew bundleRelease --no-daemon \
+            -PversionName="$VERSION_NAME" \
+            -PversionCode="$VERSION_CODE" \
+            -Pandroid.injected.signing.store.file="$RUNNER_TEMP/release.jks" \
+            -Pandroid.injected.signing.store.password="$KEYSTORE_PASSWORD" \
+            -Pandroid.injected.signing.key.alias="$KEY_ALIAS" \
+            -Pandroid.injected.signing.key.password="$KEY_PASSWORD"
+
+      - name: Verify a bundle was produced
+        run: |
+          find android -name '*.aab' -print
+          test -n "$(find android -name '*.aab' -print -quit)" || {
+            echo "::error::No .aab was produced."; exit 1; }
+
+      # Download this from the workflow run's summary page — that works fine in
+      # a phone browser, which is the whole point.
+      - name: Upload the .aab
+        uses: actions/upload-artifact@v4
+        with:
+          name: mandate-release-aab-${{ inputs.version_name }}
+          path: android/app/build/outputs/bundle/release/*.aab
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Clean up the keystore
+        if: always()
+        run: rm -f "$RUNNER_TEMP/release.jks"

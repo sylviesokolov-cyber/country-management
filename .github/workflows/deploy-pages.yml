@@ -1,0 +1,57 @@
+# ==============================================================================
+# Deploy the game to GitHub Pages on every push to main.
+#
+# There is no build step: the repo IS the site. This workflow just uploads the
+# working tree and publishes it, so roughly a minute after committing from your
+# phone the new version is live at:
+#     https://<your-username>.github.io/<repo-name>/
+#
+# ONE-TIME SETUP (in the GitHub web UI, works fine on a phone):
+#   Settings -> Pages -> Build and deployment -> Source: "GitHub Actions"
+# ==============================================================================
+name: Deploy to GitHub Pages
+
+on:
+  push:
+    branches: [main]
+  # Lets you redeploy by hand from the Actions tab without a new commit.
+  workflow_dispatch:
+
+# Permissions the deploy action needs. Least privilege: read the repo, write
+# Pages, and mint the OIDC token Pages uses to verify the deployment.
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# If you push twice quickly, let the newer deploy win rather than queueing.
+# `cancel-in-progress: false` means an in-flight deploy finishes rather than
+# leaving the site half-published.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v4
+
+      - name: Configure GitHub Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload the site
+        uses: actions/upload-pages-artifact@v3
+        with:
+          # The whole repo. index.html is at the root, and the extra markdown
+          # files are harmless. If the repo ever grows large assets that should
+          # not ship, move the game into a `public/` folder and point here.
+          path: '.'
+
+      - name: Deploy
+        id: deployment
+        uses: actions/deploy-pages@v4

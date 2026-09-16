@@ -1,0 +1,417 @@
+/* ============================================================================
+ * styles/ui.css — the components that sit inside the app shell.
+ * Uses only the tokens defined in base.css. No raw colours, no raw spacing.
+ * ========================================================================== */
+
+/* ---------------------------------------------------------------------------
+ * TOP HUD — resources, mandate meter, date, speed controls
+ * ------------------------------------------------------------------------ */
+.hud-top {
+  background: linear-gradient(180deg, var(--c-surface) 0%, var(--c-surface-2) 100%);
+  border-bottom: 1px solid var(--c-line);
+  padding-bottom: var(--s-2);
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+}
+
+.resource-row {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--s-2);
+}
+
+.resource {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  background: var(--c-surface-3);
+  border: 1px solid var(--c-line);
+  border-radius: var(--r-sm);
+  padding: var(--s-1) var(--s-2);
+  min-width: 0; /* lets the value truncate instead of stretching the grid */
+}
+
+.resource__icon { font-size: var(--f-sm); line-height: 1; }
+.resource__body { min-width: 0; }
+
+.resource__label {
+  font-size: var(--f-xs);
+  color: var(--c-text-faint);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.resource__value {
+  font-family: var(--font-num);
+  font-size: var(--f-sm);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.resource--treasury .resource__value { color: var(--c-treasury); }
+.resource--capital  .resource__value { color: var(--c-capital); }
+.resource--manpower .resource__value { color: var(--c-manpower); }
+
+/* Resources that exist in the HUD but aren't simulated yet read as inactive
+   rather than broken. */
+.resource--pending { opacity: 0.45; }
+
+/* --- mandate meter + clock row --- */
+.status-row {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+}
+
+.mandate { flex: 1 1 auto; min-width: 0; }
+
+.mandate__head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  font-size: var(--f-xs);
+  color: var(--c-text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.mandate__value {
+  font-family: var(--font-num);
+  font-variant-numeric: tabular-nums;
+  color: var(--c-mandate);
+  letter-spacing: 0;
+}
+
+.mandate__track {
+  height: 8px;
+  margin-top: var(--s-1);
+  background: var(--c-surface-3);
+  border: 1px solid var(--c-line);
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.mandate__fill {
+  height: 100%;
+  width: 100%;
+  background: var(--c-mandate);
+  /* Animating width (not transform) is fine here: it's one small element
+     updated a few times a second, not a per-frame animation. */
+  transition: width 220ms linear, background-color 400ms linear;
+}
+
+/* Below BALANCE.mandate.warnBelow the meter goes red — the run is in danger. */
+.mandate__fill--low { background: var(--c-danger); }
+
+.clock {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: var(--s-1);
+  flex: 0 0 auto;
+}
+
+.clock__date {
+  font-family: var(--font-num);
+  font-size: var(--f-xs);
+  color: var(--c-text-dim);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.speed { display: flex; gap: var(--s-1); }
+
+.speed__btn {
+  min-width: var(--tap);
+  min-height: 30px; /* the row is compact; the tap area is widened below */
+  position: relative;
+  padding: 0 var(--s-2);
+  font-size: var(--f-sm);
+  font-family: var(--font-num);
+  color: var(--c-text-dim);
+  background: var(--c-surface-3);
+  border: 1px solid var(--c-line);
+  border-radius: var(--r-sm);
+}
+
+/* Invisible padding that grows the touch target to 44px without changing the
+   visual size of the button — a standard trick for dense game HUDs. */
+.speed__btn::after {
+  content: '';
+  position: absolute;
+  inset: calc((var(--tap) - 30px) / -2) 0;
+}
+
+.speed__btn[aria-pressed='true'] {
+  color: var(--c-bg);
+  background: var(--c-accent);
+  border-color: var(--c-accent);
+  font-weight: 600;
+}
+
+/* ---------------------------------------------------------------------------
+ * MAP LAYER — the SVG, plus anything that slides over it
+ * ------------------------------------------------------------------------ */
+.map-layer {
+  position: relative;      /* panels are positioned against this box */
+  min-height: 0;           /* required so the grid row can actually shrink */
+  overflow: hidden;
+  /* Breathing room around the map. Sheets are positioned against this box's
+     padding edge, so they still reach the full width and bottom. */
+  padding: var(--s-3);
+  background:
+    radial-gradient(120% 90% at 50% 0%, #131c27 0%, var(--c-bg) 70%);
+}
+
+.map {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+/* Each region is a single <path>. Fill comes from a CSS custom property set
+   per band, so the simulation only ever has to set one class. */
+.region {
+  fill: var(--region-fill, var(--c-band-strained));
+  stroke: #0b1016;
+  stroke-width: 1.5;
+  stroke-linejoin: round;
+  transition: fill 400ms linear;
+  cursor: pointer;
+}
+
+.region--secure   { --region-fill: var(--c-band-secure); }
+.region--stable   { --region-fill: var(--c-band-stable); }
+.region--strained { --region-fill: var(--c-band-strained); }
+.region--unrest   { --region-fill: var(--c-band-unrest); }
+.region--crisis   { --region-fill: var(--c-band-crisis); }
+
+.region--selected {
+  stroke: #ffffff;
+  stroke-width: 3;
+}
+
+/* Pressed feedback. Applied on pointerdown so it appears instantly. */
+.region--pressed { filter: brightness(1.35); }
+
+.region-label {
+  fill: rgba(255, 255, 255, 0.82);
+  font-family: var(--font-ui);
+  font-size: 12px;          /* in SVG user units, so it scales with the map */
+  text-anchor: middle;
+  pointer-events: none;     /* labels must never swallow a tap */
+  paint-order: stroke;
+  stroke: rgba(0, 0, 0, 0.55);
+  stroke-width: 3px;
+  stroke-linejoin: round;
+}
+
+.region-capital {
+  fill: #ffffff;
+  pointer-events: none;
+}
+
+/* ---------------------------------------------------------------------------
+ * SHEETS — the region panel and the bottom-tab panels
+ * Both slide up over the map and scroll internally.
+ * ------------------------------------------------------------------------ */
+.sheet {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  max-height: 78%;
+  display: flex;
+  flex-direction: column;
+  background: var(--c-surface);
+  border-top: 1px solid var(--c-line-strong);
+  border-radius: var(--r-lg) var(--r-lg) 0 0;
+  box-shadow: 0 -12px 32px rgba(0, 0, 0, 0.45);
+  /* Animate transform, not height/top: transforms are GPU-composited and don't
+     force layout, so the slide stays smooth on a cheap phone. */
+  transform: translateY(101%);
+  transition: transform 220ms ease-out;
+  /* `hidden` keeps a closed sheet out of the tab order and off screen readers.
+     visibility is transitioned so it only disappears AFTER the slide down. */
+  visibility: hidden;
+  transition: transform 220ms ease-out, visibility 0s linear 220ms;
+}
+
+.sheet.is-open {
+  transform: translateY(0);
+  visibility: visible;
+  transition: transform 220ms ease-out, visibility 0s;
+}
+
+.sheet__head {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  padding: var(--s-3) var(--s-4);
+  border-bottom: 1px solid var(--c-line);
+  flex: 0 0 auto;
+}
+
+.sheet__title { font-size: var(--f-lg); font-weight: 600; }
+
+.sheet__subtitle {
+  font-size: var(--f-xs);
+  color: var(--c-text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.sheet__close {
+  margin-left: auto;
+  width: var(--tap);
+  height: var(--tap);
+  flex: 0 0 auto;
+  border-radius: var(--r-sm);
+  color: var(--c-text-dim);
+  font-size: var(--f-lg);
+  background: var(--c-surface-2);
+}
+
+.sheet__body {
+  padding: var(--s-4);
+  padding-bottom: var(--s-5);
+  flex: 1 1 auto;
+}
+
+/* --- region stats --- */
+.stat-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--s-2);
+  margin-bottom: var(--s-4);
+}
+
+.stat {
+  background: var(--c-surface-2);
+  border: 1px solid var(--c-line);
+  border-radius: var(--r-sm);
+  padding: var(--s-2);
+  text-align: center;
+}
+
+.stat__label {
+  font-size: var(--f-xs);
+  color: var(--c-text-faint);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.stat__value {
+  font-family: var(--font-num);
+  font-size: var(--f-lg);
+  font-variant-numeric: tabular-nums;
+}
+
+.bar {
+  height: 4px;
+  margin-top: var(--s-1);
+  background: var(--c-surface-3);
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.bar__fill { height: 100%; background: var(--c-accent); transition: width 300ms linear; }
+.bar__fill--stability { background: var(--c-band-stable); }
+.bar__fill--development { background: var(--c-accent); }
+
+/* --- action buttons --- */
+.actions { display: flex; flex-direction: column; gap: var(--s-2); }
+
+.action {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  width: 100%;
+  min-height: var(--tap);
+  padding: var(--s-2) var(--s-3);
+  text-align: left;
+  background: var(--c-surface-2);
+  border: 1px solid var(--c-line);
+  border-radius: var(--r-md);
+}
+
+.action:active { background: var(--c-surface-3); }
+
+.action[disabled] { opacity: 0.4; cursor: default; }
+
+.action__main { flex: 1 1 auto; min-width: 0; }
+.action__label { font-size: var(--f-md); font-weight: 600; }
+.action__blurb { font-size: var(--f-xs); color: var(--c-text-dim); }
+
+.action__cost {
+  flex: 0 0 auto;
+  text-align: right;
+  font-family: var(--font-num);
+  font-size: var(--f-sm);
+  color: var(--c-treasury);
+  font-variant-numeric: tabular-nums;
+}
+
+.action__cost small { display: block; color: var(--c-text-faint); font-size: var(--f-xs); }
+
+.note {
+  margin-top: var(--s-4);
+  padding: var(--s-3);
+  font-size: var(--f-sm);
+  color: var(--c-text-dim);
+  background: var(--c-surface-2);
+  border-left: 3px solid var(--c-line-strong);
+  border-radius: 0 var(--r-sm) var(--r-sm) 0;
+}
+
+.note strong { color: var(--c-text); }
+
+/* ---------------------------------------------------------------------------
+ * BOTTOM HUD — tab bar
+ * ------------------------------------------------------------------------ */
+.hud-bottom {
+  background: var(--c-surface);
+  border-top: 1px solid var(--c-line);
+}
+
+.tabs {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+}
+
+.tab {
+  min-height: var(--tap);
+  padding: var(--s-2) 0 var(--s-2);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  color: var(--c-text-faint);
+  font-size: var(--f-xs);
+  border-top: 2px solid transparent;
+}
+
+.tab__icon { font-size: var(--f-md); line-height: 1; }
+
+.tab[aria-pressed='true'] {
+  color: var(--c-accent);
+  border-top-color: var(--c-accent);
+  background: var(--c-surface-2);
+}
+
+/* ---------------------------------------------------------------------------
+ * GAME OVER veil (Phase 2 fills this in; the hook exists now)
+ * ------------------------------------------------------------------------ */
+.veil {
+  position: absolute;
+  inset: 0;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: var(--s-5);
+  background: rgba(8, 11, 16, 0.88);
+}
+
+.veil.is-open { display: flex; }

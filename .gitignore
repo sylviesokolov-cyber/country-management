@@ -1,0 +1,56 @@
+# ── Node / tooling ────────────────────────────────────────────────────────────
+node_modules/
+npm-debug.log*
+yarn-error.log*
+.npm/
+
+# ── Build output ──────────────────────────────────────────────────────────────
+dist/
+build/
+out/
+www/
+
+# ── SIGNING SECRETS — never commit these ──────────────────────────────────────
+# A leaked keystore lets anyone publish an app that Android trusts as yours.
+# The keystore lives in a GitHub Secret (base64) and in your own backups only.
+*.jks
+*.keystore
+keystore.properties
+key.properties
+*.p12
+*.p8
+google-play-service-account*.json
+.env
+.env.*
+
+# ── Built app packages (produced by CI, never committed) ──────────────────────
+*.aab
+*.apk
+*.aab.idsig
+*.apk.idsig
+
+# ── Capacitor / Android local artifacts ───────────────────────────────────────
+# NOTE: the android/ folder ITSELF is committed once Phase 6 creates it —
+# Capacitor treats it as part of the project. Only its local build output and
+# machine-specific files are ignored.
+android/.gradle/
+android/build/
+android/app/build/
+android/local.properties
+android/.idea/
+android/captures/
+android/app/release/
+android/app/src/main/assets/public/
+android/app/src/main/assets/capacitor.config.json
+android/app/src/main/assets/capacitor.plugins.json
+.capacitor/
+capacitor-cordova-android-plugins/
+ios/
+
+# ── Editors / OS ──────────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+*~
