@@ -9,14 +9,20 @@ and a **Mandate** meter that drains from the day you take office. Everything
 you build costs mandate, time or both. When the mandate runs out, so does your
 government. A run lasts roughly 45–60 minutes.
 
-**Status: Phase 3 (progression systems).** All three resources are simulated,
-regions drift toward a natural stability set by what you've built there, and
-unrest spreads between neighbours. On top of that: a twenty-node **tech tree**
-with a research queue that costs time as well as Political Capital,
-**appointees** you hire, pay daily and post to a region, and standing
-**policies** you live with rather than switch. A run ends with a proper
-end-of-term summary. See [TODO.md](TODO.md) for the plan and
-[DEVLOG.md](DEVLOG.md) for what happened when.
+**Status: Phase 4 (runs, variety and closure) — the game is feature-complete.**
+You pick one of six **leaders**, each with a buff, a handicap and a mechanic
+that changes a rule for them alone. You have one term — ten in-game years — to
+stabilise and develop sixteen regions against a Mandate meter that only ever
+drains. Along the way: a twenty-node **tech tree** with a research queue that
+costs time as well as Political Capital, **appointees** you hire, pay daily and
+post to a region, standing **policies** you live with rather than switch, and
+**events** that fire because of what you have been ignoring rather than at
+random. Serve the full term and you win; run out of Mandate and you don't.
+Either way you get a score, and each leader remembers your best.
+
+What's left is Phase 5 (balance and polish) and Phase 6 (the Android wrap). See
+[TODO.md](TODO.md) for the plan and [DEVLOG.md](DEVLOG.md) for what happened
+when.
 
 ---
 
@@ -91,6 +97,8 @@ data/                   ── ALL TUNABLE / AUTHORED CONTENT ──
   traits.js             what an appointee is good and bad at
   appointees.js         names and titles the hiring pool is drawn from
   policies.js           standing national decisions
+  leaders.js            the six leaders: buff, handicap, mechanic
+  events.js             16 events with branching choices and conditions
 src/
   util.js               clamp, number and date formatting
   state.js              the game state object + versioned save/load
@@ -104,6 +112,8 @@ src/
     hud.js              the floating HUD (chips, clock, speed, Mandate gauge)
     panel.js            region detail panel (slides in from the right)
     ministry.js         the Tech, Appointees and Policies screens
+    events.js           the event card, and the run log behind it
+    leaders.js          the leader selection screen
     overlay.js          full-screen management overlay + the region list
 .github/workflows/
   deploy-pages.yml      auto-deploy to GitHub Pages on push to main

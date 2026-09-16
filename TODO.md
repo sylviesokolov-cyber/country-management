@@ -105,18 +105,32 @@ Tick items off as they land, and note anything deferred in `DEVLOG.md`.
 
 ---
 
-## Phase 4 — Runs, variety and closure
+## Phase 4 — Runs, variety and closure ✅ *(complete)*
 
-- [ ] `data/leaders.js`: 4–6 leaders, each with a starting buff, a handicap and
-      ideally a unique mechanic — expressed as data-checked flags, never as
-      code branching on a leader id
-- [ ] Leader selection screen before a run starts
-- [ ] `data/events.js`: random and triggered events with branching choices
-- [ ] Event scheduler with weighting and cooldowns, so events respond to the
-      state of the country rather than firing blind
-- [ ] Events tab doubles as the run log
-- [ ] Run summary and scoring at game over (win and lose conditions)
-- [ ] Persist best scores per leader
+- [x] `data/leaders.js`: **six** leaders, each with a starting buff, a handicap
+      and a unique mechanic — all three are ordinary `mods`/`flags` payloads
+      merged by `src/modifiers.js`, so there is no `if (leader === ...)`
+      anywhere in `src/` and a seventh leader is an object in a data file
+- [x] Leader selection screen before a run starts, built entirely from the data
+      file, showing each leader's three payloads separately, a **measured**
+      difficulty rating (see the table in `BALANCE.md`) and their best score
+- [x] `data/events.js`: 16 events, 43 choices, with `requires` conditions,
+      per-event and global cooldowns, `once` set-pieces and region targeting
+- [x] Event scheduler that **filters on the state of the country first and
+      rolls second**, so what can happen is decided by what you have been
+      ignoring; plus a grace period, so the opening is quiet
+- [x] Event choices can leave **timed modifiers** behind (`state.effects`),
+      which expire on their own and are listed in the Events tab
+- [x] Events tab doubles as the run log — the same tab the event card belongs
+      to, because "what is happening" and "what has happened" are one question
+- [x] **Win condition**: serve the full 3,650-day term. It sits above what
+      baseline decay alone allows, so a term cannot be waited out — the only
+      way to reach the end is to govern well enough that approval buys back the
+      difference
+- [x] Run summary and scoring at game over, reading completely differently for
+      a term served and a mandate exhausted
+- [x] Persist best scores per leader, in their own `localStorage` key so they
+      outlive the runs they describe
 
 ---
 
@@ -126,11 +140,16 @@ Tick items off as they land, and note anything deferred in `DEVLOG.md`.
       `BALANCE.md`
 - [ ] Headless balance harness: run N ticks in Node and dump the curves
       *(the sim has no DOM dependencies, so this is straightforward)*.
-      Phase 3 used a ten-style scratch version of this for the second time;
-      it has now earned a home in the repo
-- [ ] Re-visit whether garrisons are ever worth it outside crisis triage — in
-      every Phase 3 harness style, more garrisons meant a shorter run. See the
-      Phase 3 entry in `BALANCE.md`
+      Now rewritten from scratch for the **third** phase running — Phase 4's
+      version drives six leaders × six seeds and answers events. Overdue
+- [ ] Re-visit whether garrisons are ever worth it outside crisis triage.
+      Phase 4 halved the Mandate cost (3 → 1.5) and gave the Marshal a 40%
+      upkeep cut, which moved it from hopeless to close — but a build-focused
+      style still outlives a garrison-focused one *for the Marshal*. The
+      remaining fix is a crisis the player cannot invest their way out of, i.e.
+      sharper crisis events. See both `BALANCE.md` entries
+- [ ] Sharpen the crisis events so neglect is punished faster than a Treasury
+      surplus can undo it
 - [ ] Verify a run lands in the 45–60 minute window
 - [ ] Save/load hardening: corrupt-save handling, a real migration step, manual
       save/restart controls

@@ -39,9 +39,21 @@
  *       Research is spent time, so it must not depend on whether the player
  *       could pay for anything today.
  *
- * Nothing in this file asks "does the player have tech X?". Tech, appointees
- * and policies all arrive as one table of numbers from src/modifiers.js, and
- * the sim only ever reads keys out of it. See that file for the contract.
+ * PHASE 4 adds two more steps and a second way for a run to end:
+ *
+ *   3d. Temporary EVENT EFFECTS expire. Before anything reads the modifier
+ *       table for the day, so an effect never gets a free extra day.
+ *   3e. The EVENT SCHEDULER may fire. It filters on the state of the country
+ *       first and rolls second, which is what makes an event read as a
+ *       consequence rather than as a dice roll.
+ *   7.  The run ends if Mandate hit zero (lost) OR the full term was served
+ *       (won). Both go through one endRun() so the score is computed exactly
+ *       one way.
+ *
+ * Nothing in this file asks "does the player have tech X?" or "is this the
+ * Marshal?". Tech, appointees, policies, the LEADER and live event effects all
+ * arrive as one table of numbers from src/modifiers.js, and the sim only ever
+ * reads keys out of it. See that file for the contract.
  * ========================================================================== */
 (function (Mandate) {
   'use strict';
@@ -407,7 +419,8 @@
     /* Deficit Financing: the unpaid share of the bill lands here instead of
      * on the country. */
     if (shortfallFraction && Mods.on(m, 'austerityHitsMandate')) {
-      loss += shortfallFraction * M.austerityPerShortfallPerDay;
+      loss += shortfallFraction * M.austerityPerShortfallPerDay *
+        Mods.mult(m, 'austerityMandate.mult');
     }
     return loss;
   };
@@ -566,6 +579,14 @@
     advanceResearch(state);
     refreshPool(state);
 
+    /* --- 3d. Expire temporary event effects ----------------------------- */
+    /* Before anything else reads the modifier table today, so an effect that
+     * ended yesterday never gets a free extra day of being true. */
+    expireEffects(state);
+
+    /* --- 3e. The event scheduler ---------------------------------------- */
+    maybeFireEvent(state);
+
     /* --- 4. Drift ------------------------------------------------------- */
     /* Computed for every region FIRST, against the same snapshot, then
      * applied. See the header note: doing this in one pass would make unrest
@@ -594,17 +615,88 @@
     recomputeDerived(state);
     if (state.derived.unstableRegions > 0) state.stats.daysInUnrest += 1;
 
-    /* --- 7. Lose condition ---------------------------------------------- */
-    /* The check lives here, in the sim, so the UI never has to decide whether
-     * the run is over — it only has to draw the fact that it is. */
+    /* --- 7. Win and lose ------------------------------------------------ */
+    /* Both live here, in the sim, so the UI never has to decide whether the
+     * run is over — it only has to draw the fact that it is.
+     *
+     * Losing is checked first: running out of Mandate on the last day of the
+     * term is still losing. You have to be standing when the bell goes. */
     if (state.mandate <= B.mandate.gameOverAt) {
-      state.gameOver = true;
-      state.gameOverReason = state.derived.unstableRegions > 0
+      endRun(state, false, state.derived.unstableRegions > 0
         ? 'Your mandate ran out with ' + state.derived.unstableRegions +
           ' region' + (state.derived.unstableRegions === 1 ? '' : 's') + ' in unrest.'
-        : 'Your mandate ran out. The country was calm; your term was not.';
-      state.speed = 0;
+        : 'Your mandate ran out. The country was calm; your term was not.');
+    } else if (state.day >= B.mandate.termDays) {
+      endRun(state, true,
+        'Ten years, start to finish. The country you hand over is the one you made.');
     }
+  };
+
+  /**
+   * End the run, exactly once, through exactly one path.
+   *
+   * Both endings compute the score the same way, write the same log entry and
+   * stop the clock the same way. Two separate endings that each did their own
+   * bookkeeping would drift the first time either was edited.
+   */
+  function endRun(state, won, reason) {
+    if (state.gameOver) return;
+    state.gameOver = true;
+    state.won = won;
+    state.gameOverReason = reason;
+    state.score = Sim.score(state);
+    state.speed = 0;
+    /* An event can fire on the same tick the run ends (step 3e happens before
+     * step 7). Leaving it pending would park a dead decision behind the
+     * end-of-term screen, and it would still be there if the summary were
+     * dismissed. A government that has fallen does not answer its post. */
+    state.events.pending = null;
+    Sim.log(state, won ? 'win' : 'lose', reason + ' Final score ' +
+      state.score.toLocaleString('en-US') + '.');
+  }
+  Sim.endRun = endRun;
+
+  /* ------------------------------------------------------------------------
+   * SCORING
+   * One number for a whole term. Every weight lives in BALANCE.scoring, so
+   * what the game thinks a good term IS stays arguable in a data file rather
+   * than buried here.
+   * ---------------------------------------------------------------------- */
+
+  /** What the country was handed to you as — the baseline development scores against. */
+  Sim.startingDevelopment = function () {
+    return Mandate.REGIONS.reduce(function (total, def) {
+      return total + def.development;
+    }, 0);
+  };
+
+  /**
+   * The share of the term with no region below the unrest line. This is the
+   * multiplier, not an addend, which is the point: it scales the WHOLE score,
+   * so a huge permanently-burning country cannot outscore a smaller one that
+   * was actually governed.
+   */
+  Sim.calmShare = function (state) {
+    if (!state.day) return 1;
+    return (state.day - state.stats.daysInUnrest) / state.day;
+  };
+
+  Sim.score = function (state) {
+    var S = Mandate.BALANCE.scoring;
+    var built = state.derived.nationalDevelopment - Sim.startingDevelopment();
+
+    var raw = state.day * S.perDaySurvived +
+      built * S.perDevelopmentBuilt +
+      state.derived.nationalStability * S.perStabilityPoint +
+      state.stats.techCompleted * S.perTechCompleted +
+      (state.won ? S.termCompletedBonus : 0);
+
+    var calm = S.calmFloor + (1 - S.calmFloor) * Sim.calmShare(state);
+    var score = Math.round(raw * calm);
+    /* A catastrophic term can drive `built` deeply negative. A negative score
+     * is not a meaningful thing to show a player or to compare against a best,
+     * so zero is the floor. */
+    return score > 0 ? score : 0;
   };
 
   /* ------------------------------------------------------------------------
@@ -637,6 +729,19 @@
       out[key] = value < 1 ? 1 : value;
     });
     return out;
+  };
+
+  /**
+   * What this action costs in MANDATE on this region. A separate function
+   * from the resource cost because Mandate is not a resource — it is the
+   * clock, it is never refunded, and at least one leader (the Reformer) zeroes
+   * it for a single action.
+   */
+  Sim.actionMandateCost = function (state, actionId, regionId) {
+    var action = Mandate.BALANCE.actions[actionId];
+    if (!action || !action.mandateCost) return 0;
+    return action.mandateCost *
+      Mods.mult(Mods.forRegion(state, regionId), 'mandateCost.' + actionId + '.mult');
   };
 
   /**
@@ -766,8 +871,9 @@
       if (!Object.prototype.hasOwnProperty.call(action.refund, key)) continue;
       state.resources[key] += action.refund[key];
     }
-    if (action.mandateCost) {
-      state.mandate = clamp(state.mandate - action.mandateCost, 0, B.mandate.max);
+    var mandateCost = Sim.actionMandateCost(state, actionId, regionId);
+    if (mandateCost) {
+      state.mandate = clamp(state.mandate - mandateCost, 0, B.mandate.max);
     }
 
     /* Apply */
@@ -786,6 +892,12 @@
 
     region.actionsTaken += 1;
     state.stats.actionsTaken += 1;
+
+    /* The Tribune earns standing by DOING things rather than by the country
+     * being calm — the one leader whose Political Capital survives a crisis.
+     * Nothing pays this until a modifier sets it. */
+    state.resources.politicalCapital +=
+      Mods.add(Mods.forRegion(state, regionId), 'pc.perAction');
 
     /* Applied after the effects, so an Invest's new development has already
      * raised the Manpower cap this check measures against. */
@@ -976,6 +1088,7 @@
     state.tech.completed.push(nodeId);
     state.tech.progress = 0;
     state.stats.techCompleted += 1;
+    Sim.log(state, 'tech', 'Research complete: ' + node.name + '.');
     touch(state);
   }
 
@@ -1081,6 +1194,8 @@
     candidate.hiredOn = state.day;
     state.appointees.hired.push(candidate);
     state.stats.appointeesHired += 1;
+    Sim.log(state, 'ministry', 'Appointed ' + candidate.name + ' (' +
+      Mandate.APPOINTEES.roleLabels[candidate.role] + ').');
     touch(state);
     return true;
   };
@@ -1126,8 +1241,16 @@
   Sim.policyCooldownLeft = function (state, categoryId) {
     var changedOn = state.policies.changedOn[categoryId];
     if (changedOn === undefined) return 0;
-    var left = Mandate.BALANCE.policies.cooldownDays - (state.day - changedOn);
+    var window = Mandate.BALANCE.policies.cooldownDays *
+      Mods.mult(Mods.of(state), 'policyCooldown.mult');
+    var left = window - (state.day - changedOn);
     return left > 0 ? left : 0;
+  };
+
+  /** What enacting this option costs in Political Capital, after modifiers. */
+  Sim.policyCost = function (state, option) {
+    if (!option || !option.cost) return 0;
+    return Math.round(option.cost * Mods.mult(Mods.of(state), 'policyCost.mult'));
   };
 
   Sim.canEnactPolicy = function (state, categoryId, optionId) {
@@ -1139,7 +1262,7 @@
     }
     var left = Sim.policyCooldownLeft(state, categoryId);
     if (left > 0) return { ok: false, reason: Math.ceil(left) + ' days' };
-    if (state.resources.politicalCapital < (option.cost || 0)) {
+    if (state.resources.politicalCapital < Sim.policyCost(state, option)) {
       return { ok: false, reason: 'Not enough Political Capital' };
     }
     return { ok: true };
@@ -1148,9 +1271,350 @@
   Sim.enactPolicy = function (state, categoryId, optionId) {
     if (!Sim.canEnactPolicy(state, categoryId, optionId).ok) return false;
     var option = Mandate.POLICIES.option(categoryId, optionId);
-    state.resources.politicalCapital -= (option.cost || 0);
+    var category = Mandate.POLICIES.category(categoryId);
+    state.resources.politicalCapital -= Sim.policyCost(state, option);
     state.policies.active[categoryId] = optionId;
     state.policies.changedOn[categoryId] = state.day;
+    touch(state);
+    Sim.log(state, 'policy', category.label + ': ' + option.label + ' enacted.');
+    recomputeDerived(state);
+    return true;
+  };
+
+  /* ========================================================================
+   * PHASE 4 — THE RUN LOG, TIMED EFFECTS AND THE EVENT SCHEDULER
+   * ====================================================================== */
+
+  /**
+   * Append a line to the run log. Capped, because a full 3,650-day term would
+   * otherwise accumulate a few hundred entries and every one of them goes into
+   * every autosave. The oldest go first: what a player reads back is the
+   * recent past.
+   */
+  Sim.log = function (state, kind, text) {
+    if (!state.log) state.log = [];
+    state.log.push({ day: state.day, kind: kind, text: text });
+    var max = Mandate.BALANCE.log.maxEntries;
+    if (state.log.length > max) state.log.splice(0, state.log.length - max);
+  };
+
+  /* ------------------------------------------------------------------------
+   * TIMED EFFECTS
+   * An event choice can leave a modifier behind that expires on its own. They
+   * are ordinary modifier payloads with an `untilDay`, which means they need
+   * no special handling anywhere except here and in the merge.
+   * ---------------------------------------------------------------------- */
+
+  function expireEffects(state) {
+    if (!state.effects || !state.effects.length) return;
+    var kept = state.effects.filter(function (effect) {
+      return state.day < effect.untilDay;
+    });
+    if (kept.length === state.effects.length) return;
+
+    state.effects.filter(function (effect) {
+      return state.day >= effect.untilDay;
+    }).forEach(function (effect) {
+      Sim.log(state, 'effect', effect.label + ' has run its course.');
+    });
+
+    state.effects = kept;
+    touch(state);
+  }
+
+  function addEffect(state, payload) {
+    var E = Mandate.BALANCE.events;
+    /* A cap purely so a pathological data file cannot unbound the modifier
+     * table. Oldest out first — the one most likely to be about to expire. */
+    if (state.effects.length >= E.maxActiveEffects) state.effects.shift();
+    state.effects.push({
+      id: payload.id || ('fx' + state.day + '-' + state.effects.length),
+      label: payload.label,
+      untilDay: state.day + payload.days,
+      mods: payload.mods,
+      flags: payload.flags,
+    });
+    touch(state);
+  }
+
+  /* ------------------------------------------------------------------------
+   * EVENT TARGETING
+   * Resolved ONCE, when the event fires, and stored on the pending event. If
+   * the target were re-picked when the player answered, the text could name
+   * one province and the effects land on another — and the player would be
+   * the one to notice.
+   * ---------------------------------------------------------------------- */
+
+  function regionsBy(state, comparator) {
+    return state.regions.slice().sort(comparator);
+  }
+
+  Sim.pickTarget = function (state, mode) {
+    var pool;
+    switch (mode) {
+      case 'worst':
+        return regionsBy(state, function (a, b) { return a.stability - b.stability; })[0];
+      case 'richest':
+        return regionsBy(state, function (a, b) { return b.development - a.development; })[0];
+      case 'capital':
+        for (var i = 0; i < state.regions.length; i++) {
+          var def = Mandate.State.regionDef(state.regions[i].id);
+          if (def && def.capital) return state.regions[i];
+        }
+        return state.regions[0];
+      case 'randomUnstable':
+        pool = state.regions.filter(Sim.isUnstable);
+        if (!pool.length) pool = state.regions;
+        return pool[Math.floor(Sim.random(state) * pool.length)];
+      default:
+        return state.regions[Math.floor(Sim.random(state) * state.regions.length)];
+    }
+  };
+
+  /* ------------------------------------------------------------------------
+   * ELIGIBILITY
+   * Every condition an event or a choice can carry, in one place. An unknown
+   * key is treated as UNMET rather than ignored: a typo in data/events.js
+   * should make an event never fire, which is noticeable, rather than fire
+   * unconditionally, which is not.
+   * ---------------------------------------------------------------------- */
+
+  var CONDITIONS = {
+    minDay: function (state, value) { return state.day >= value; },
+    maxDay: function (state, value) { return state.day <= value; },
+    nationalStabilityAbove: function (state, v) { return state.derived.nationalStability > v; },
+    nationalStabilityBelow: function (state, v) { return state.derived.nationalStability < v; },
+    mandateAbove: function (state, v) { return state.mandate > v; },
+    mandateBelow: function (state, v) { return state.mandate < v; },
+    treasuryAbove: function (state, v) { return state.resources.treasury > v; },
+    treasuryBelow: function (state, v) { return state.resources.treasury < v; },
+    politicalCapitalAtLeast: function (state, v) { return state.resources.politicalCapital >= v; },
+    manpowerAtLeast: function (state, v) { return state.resources.manpower >= v; },
+    unstableRegionsAtLeast: function (state, v) { return state.derived.unstableRegions >= v; },
+    austerity: function (state, v) { return !!state.derived.austerity === !!v; },
+    hasAppointee: function (state, v) { return (state.appointees.hired.length > 0) === !!v; },
+    garrisonsAtLeast: function (state, v) {
+      var count = 0;
+      for (var i = 0; i < state.regions.length; i++) {
+        if (state.regions[i].garrisoned) count += 1;
+      }
+      return count >= v;
+    },
+    hasTech: function (state, ids) {
+      return (Array.isArray(ids) ? ids : [ids]).every(function (id) {
+        return state.tech.completed.indexOf(id) !== -1;
+      });
+    },
+  };
+
+  Sim.conditionsMet = function (state, requires) {
+    if (!requires) return true;
+    return Object.keys(requires).every(function (key) {
+      var test = CONDITIONS[key];
+      if (!test) {
+        console.warn('[Mandate] unknown event condition "' + key + '" — treating as unmet.');
+        return false;
+      }
+      return test(state, requires[key]);
+    });
+  };
+
+  /** Can this event fire right now — cooldowns, `once`, and its conditions. */
+  Sim.eventEligible = function (state, event) {
+    if (state.day < (event.minDay || 0)) return false;
+    if (event.once && state.events.firedCounts[event.id]) return false;
+
+    var lastOn = state.events.lastFiredOn[event.id];
+    if (lastOn !== undefined && state.day - lastOn < (event.cooldownDays || 0)) return false;
+
+    return Sim.conditionsMet(state, event.requires);
+  };
+
+  /* ------------------------------------------------------------------------
+   * THE SCHEDULER
+   * Filter on the state of the world FIRST, roll SECOND. That ordering is the
+   * whole reason events read as consequences instead of as dice: what CAN
+   * happen is decided by what the country is doing, and chance only picks
+   * between things that were already true.
+   * ---------------------------------------------------------------------- */
+
+  function maybeFireEvent(state) {
+    var E = Mandate.BALANCE.events;
+    if (state.events.pending) return;                    /* one at a time */
+    if (state.day < E.graceDays) return;                 /* a quiet opening */
+    if (state.day - state.events.lastFiredDay < E.globalCooldownDays) return;
+    if (Sim.random(state) >= E.chancePerDay) return;
+
+    var eligible = Mandate.EVENTS.filter(function (event) {
+      return Sim.eventEligible(state, event);
+    });
+    if (!eligible.length) return;
+
+    var total = eligible.reduce(function (sum, event) { return sum + (event.weight || 1); }, 0);
+    var roll = Sim.random(state) * total;
+    var chosen = eligible[eligible.length - 1];
+    for (var i = 0; i < eligible.length; i++) {
+      roll -= (eligible[i].weight || 1);
+      if (roll <= 0) { chosen = eligible[i]; break; }
+    }
+
+    Sim.fireEvent(state, chosen);
+  }
+
+  /**
+   * Put an event in front of the player. Exposed so a future phase (or a
+   * debugging session) can trigger one directly without waiting for the dice.
+   */
+  Sim.fireEvent = function (state, event) {
+    var target = event.target ? Sim.pickTarget(state, event.target) : null;
+
+    state.events.pending = {
+      eventId: event.id,
+      day: state.day,
+      regionId: target ? target.id : null,
+    };
+    state.events.lastFiredDay = state.day;
+    state.events.lastFiredOn[event.id] = state.day;
+    state.events.firedCounts[event.id] = (state.events.firedCounts[event.id] || 0) + 1;
+    state.events.seen += 1;
+
+    /* A branching choice read while sixteen regions drift is not a choice, it
+     * is a reflex test. main.js restores the speed when the player answers. */
+    if (Mandate.BALANCE.events.pauseOnFire) state.speed = 0;
+  };
+
+  /** The text of the pending event, with {region} filled in. */
+  Sim.fillText = function (state, text, regionId) {
+    if (!text) return '';
+    if (text.indexOf('{region}') === -1) return text;
+    var def = regionId ? Mandate.State.regionDef(regionId) : null;
+    return text.split('{region}').join(def ? def.name : 'the province');
+  };
+
+  /** Is this choice affordable and legal? Same shape as Sim.canAfford. */
+  Sim.canChooseEvent = function (state, choiceId) {
+    var pending = state.events.pending;
+    if (!pending) return { ok: false, reason: 'No event' };
+
+    var event = Mandate.EVENTS.byId(pending.eventId);
+    var choice = null;
+    for (var i = 0; event && i < event.choices.length; i++) {
+      if (event.choices[i].id === choiceId) choice = event.choices[i];
+    }
+    if (!choice) return { ok: false, reason: 'Unknown choice' };
+
+    if (!Sim.conditionsMet(state, choice.requires)) {
+      return { ok: false, reason: 'Not available' };
+    }
+    for (var key in choice.cost) {
+      if (!Object.prototype.hasOwnProperty.call(choice.cost, key)) continue;
+      if (state.resources[key] < choice.cost[key]) {
+        return { ok: false, reason: 'Not enough ' + LABELS[key] };
+      }
+    }
+    return { ok: true };
+  };
+
+  /* ------------------------------------------------------------------------
+   * RESOLUTION
+   * Every effect an event choice can have, applied in one function. Adding a
+   * new KIND of effect is one case here; adding a new event is a data edit.
+   * ---------------------------------------------------------------------- */
+
+  function applyRegionChange(state, region, change) {
+    var R = Mandate.BALANCE.region;
+    if (!region || !change) return;
+    if (change.stability) {
+      region.stability = clamp(region.stability + change.stability, R.min, R.max);
+    }
+    if (change.development) {
+      region.development = clamp(region.development + change.development, R.min, R.max);
+    }
+    if (typeof change.garrisoned === 'boolean') region.garrisoned = change.garrisoned;
+  }
+
+  Sim.resolveEvent = function (state, choiceId) {
+    if (!Sim.canChooseEvent(state, choiceId).ok) return false;
+
+    var pending = state.events.pending;
+    var event = Mandate.EVENTS.byId(pending.eventId);
+    var choice = null;
+    var i;
+    for (i = 0; i < event.choices.length; i++) {
+      if (event.choices[i].id === choiceId) choice = event.choices[i];
+    }
+
+    var target = pending.regionId ? Mandate.State.regionById(state, pending.regionId) : null;
+    var effects = choice.effects || {};
+    var key;
+
+    /* --- pay --- */
+    for (key in choice.cost) {
+      if (!Object.prototype.hasOwnProperty.call(choice.cost, key)) continue;
+      state.resources[key] -= choice.cost[key];
+    }
+    if (choice.mandateCost) {
+      state.mandate = clamp(
+        state.mandate - choice.mandateCost, 0, Mandate.BALANCE.mandate.max);
+    }
+
+    /* --- immediate national effects --- */
+    if (effects.mandate) {
+      state.mandate = clamp(
+        state.mandate + effects.mandate, 0, Mandate.BALANCE.mandate.max);
+    }
+    for (key in effects.resources) {
+      if (!Object.prototype.hasOwnProperty.call(effects.resources, key)) continue;
+      state.resources[key] += effects.resources[key];
+    }
+
+    /* --- region effects --- */
+    applyRegionChange(state, target, effects.target);
+    if (effects.allRegions) {
+      for (i = 0; i < state.regions.length; i++) {
+        applyRegionChange(state, state.regions[i], effects.allRegions);
+      }
+    }
+    if (effects.worstRegion) {
+      applyRegionChange(state, Sim.pickTarget(state, 'worst'), effects.worstRegion);
+    }
+    if (effects.richestRegion) {
+      applyRegionChange(state, Sim.pickTarget(state, 'richest'), effects.richestRegion);
+    }
+    if (effects.randomRegion) {
+      applyRegionChange(state, Sim.pickTarget(state, 'random'), effects.randomRegion);
+    }
+
+    /* --- effects on the government itself --- */
+    if (effects.withdrawAllGarrisons) {
+      for (i = 0; i < state.regions.length; i++) state.regions[i].garrisoned = false;
+    }
+    if (effects.dismissLongestServing) {
+      var longest = null;
+      for (i = 0; i < state.appointees.hired.length; i++) {
+        var person = state.appointees.hired[i];
+        if (!longest || (person.hiredOn || 0) < (longest.hiredOn || 0)) longest = person;
+      }
+      if (longest) Sim.dismiss(state, longest.id);
+    }
+
+    /* --- the temporary modifier, if any --- */
+    if (choice.effect) {
+      addEffect(state, {
+        id: event.id + ':' + choice.id,
+        label: Sim.fillText(state, choice.effect.label, pending.regionId),
+        days: choice.effect.days,
+        mods: choice.effect.mods,
+        flags: choice.effect.flags,
+      });
+    }
+
+    Sim.log(state, 'event',
+      Sim.fillText(state, choice.log || event.title, pending.regionId));
+    state.stats.eventsResolved += 1;
+    state.events.pending = null;
+
+    clampResources(state);
     touch(state);
     recomputeDerived(state);
     return true;

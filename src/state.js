@@ -25,7 +25,7 @@
    * renamed, removed). `migrate()` below then decides what to do with older
    * saves. Getting this in from day one is much cheaper than retrofitting it
    * after players have saves worth keeping. */
-  State.SCHEMA_VERSION = 3;
+  State.SCHEMA_VERSION = 4;
   State.SAVE_KEY = 'mandate:save';
 
   /**
@@ -33,7 +33,7 @@
    * Note how everything numeric comes from BALANCE or the region data — there
    * are no magic numbers in this function.
    */
-  State.createNewGame = function () {
+  State.createNewGame = function (leaderId) {
     var B = Mandate.BALANCE;
 
     var regions = Mandate.REGIONS.map(function (def) {
@@ -62,10 +62,33 @@
       balanceVersion: B.balanceVersion,
       startedAt: new Date().toISOString(),
 
+      /* WHO YOU ARE. Chosen on the leader screen before the run starts; their
+       * buff, handicap and mechanic are merged into the modifier table and
+       * never referenced by id anywhere in src/. Defaults to the first leader
+       * so that a headless balance run needs no ceremony. */
+      leaderId: leaderId || Mandate.LEADERS[0].id,
+
+      /* A run has not STARTED until a leader has actually been chosen.
+       *
+       * main.js builds a provisional world at boot so the map and HUD have
+       * something to draw behind the leader screen, and that world must never
+       * be persisted: the phone lifecycle hooks save on `pagehide` and on
+       * `visibilitychange`, so without this flag, opening the game and
+       * reloading before choosing anybody would save the placeholder, find it
+       * on the next boot, skip the leader screen entirely, and drop the player
+       * into a run under a leader they never picked. State.save() refuses an
+       * unstarted world outright — one guard, in the one place that writes. */
+      started: !!leaderId,
+
       day: 0,               /* ticks elapsed; the date is derived from this */
       speed: 1,             /* 0 = paused, 1 = 1x, 2 = 2x */
       gameOver: false,
       gameOverReason: null,
+      /* Phase 4: a run now ends in one of TWO ways. `won` is true when the
+       * full term was served, false when the Mandate ran out. The end-of-term
+       * screen reads very differently for each, and so does the score. */
+      won: false,
+      score: 0,
 
       resources: {
         treasury: B.resources.treasury.start,
@@ -113,9 +136,32 @@
         changedOn: {},
       },
 
-      /* Seeded RNG state. Every random draw in the game (currently only the
-       * candidate pool) steps this, so a save reloads into the same future
-       * rather than a different one — and a balance run is reproducible. */
+      /* --- PHASE 4 --------------------------------------------------------
+       * Temporary modifiers left behind by event choices. Each is an ordinary
+       * modifier payload plus an expiry: { id, label, untilDay, mods, flags }.
+       * The sim drops them when their day comes, so nothing here needs to be
+       * cleaned up on load. */
+      effects: [],
+
+      /* The run log, which the Events tab renders. Newest last; capped by
+       * BALANCE.log.maxEntries so a full term doesn't bloat every save. */
+      log: [],
+
+      /* Event scheduling bookkeeping. `pending` is the event awaiting an
+       * answer — it holds the resolved region so the wording and the effects
+       * can never disagree about which province this is happening in. */
+      events: {
+        lastFiredDay: -99999,
+        firedCounts: {},    /* eventId -> times fired, for `once` */
+        lastFiredOn: {},    /* eventId -> day, for per-event cooldowns */
+        pending: null,
+        seen: 0,
+      },
+
+      /* Seeded RNG state. Every random draw in the game (the candidate pool
+       * and the event scheduler) steps this, so a save reloads into the same
+       * future rather than a different one — and a balance run is
+       * reproducible. */
       rngSeed: (Date.now() >>> 0) || 1,
 
       /* Bumped by the sim whenever tech, appointees or policies change.
@@ -160,6 +206,7 @@
         daysInUnrest: 0,
         techCompleted: 0,
         appointeesHired: 0,
+        eventsResolved: 0,
       },
     };
   };
@@ -185,6 +232,9 @@
    * ---------------------------------------------------------------------- */
 
   State.save = function (state) {
+    /* See `started` in createNewGame: a world nobody has chosen a leader for
+     * is scenery, not a run, and must never reach localStorage. */
+    if (!state || !state.started) return false;
     try {
       window.localStorage.setItem(State.SAVE_KEY, JSON.stringify(state));
       return true;
@@ -279,6 +329,34 @@
       save.schemaVersion = 3;
     }
 
+    /* v3 -> v4 (Phase 4): leaders, events and a win condition. A v3 save was
+     * played without a leader at all, and there is no honest way to invent one
+     * retroactively — a leader changes the modifier table, so picking one now
+     * would silently re-balance a run in progress. The first leader is the
+     * least-wrong answer and the reason is recorded in the run log, where the
+     * player will see it. */
+    if (save.schemaVersion === 3) {
+      save.leaderId = Mandate.LEADERS[0].id;
+      save.won = false;
+      save.score = 0;
+      save.effects = [];
+      save.log = [{
+        day: save.day || 0,
+        kind: 'system',
+        text: 'This term began before leaders existed; it continues under ' +
+          Mandate.LEADERS[0].title + '.',
+      }];
+      save.events = {
+        lastFiredDay: -99999, firedCounts: {}, lastFiredOn: {},
+        pending: null, seen: 0,
+      };
+      save.stats = save.stats || {};
+      save.stats.eventsResolved = 0;
+      /* A v3 save is by definition a run somebody was playing. */
+      save.started = true;
+      save.schemaVersion = 4;
+    }
+
     if (save.schemaVersion !== State.SCHEMA_VERSION) {
       console.warn(
         '[Mandate] save is schema v' + save.schemaVersion +
@@ -291,6 +369,53 @@
      * are still working out what was happening. */
     save.speed = 0;
     return save;
+  };
+
+  /* ------------------------------------------------------------------------
+   * BEST SCORES
+   * Kept in their own localStorage key, deliberately NOT in the save: the save
+   * is one run and is cleared when a new one starts, whereas a best score has
+   * to outlive every run it describes. A corrupt or missing table is simply an
+   * empty one — a scoreboard must never be the thing that stops the game
+   * loading.
+   * ---------------------------------------------------------------------- */
+
+  State.loadBestScores = function () {
+    try {
+      var raw = window.localStorage.getItem(Mandate.BALANCE.scoring.bestScoresKey);
+      var parsed = raw ? JSON.parse(raw) : null;
+      return (parsed && typeof parsed === 'object') ? parsed : {};
+    } catch (err) {
+      console.warn('[Mandate] could not read best scores:', err);
+      return {};
+    }
+  };
+
+  /**
+   * Record a finished run against its leader, keeping only the better of the
+   * two. Returns true when this run set a new best, so the summary screen can
+   * say so.
+   */
+  State.recordBestScore = function (state) {
+    var best = State.loadBestScores();
+    var previous = best[state.leaderId];
+    if (previous && previous.score >= state.score) return false;
+
+    best[state.leaderId] = {
+      score: state.score,
+      days: state.day,
+      won: state.won,
+      development: Math.round(state.derived.nationalDevelopment),
+      stability: Math.round(state.derived.nationalStability),
+      at: new Date().toISOString(),
+    };
+    try {
+      window.localStorage.setItem(
+        Mandate.BALANCE.scoring.bestScoresKey, JSON.stringify(best));
+    } catch (err) {
+      console.warn('[Mandate] could not save best scores:', err);
+    }
+    return true;
   };
 
   Mandate.State = State;

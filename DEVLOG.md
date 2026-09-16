@@ -314,3 +314,87 @@ Template:
 - Still deferred: the headless harness is *still* a scratch file, now on its
   second phase of earning its keep. It is in Phase 5's list.
 - Still worth starting now: recruit the 12 Play Store testers (14-day clock).
+
+
+## 2026-09-16 — Phase 4: leaders, events, and a way to win
+
+**Built**
+- **A run can now be won.** `mandate.termDays` is 3,650 — ten in-game years,
+  ~55 minutes at 1× — and it sits deliberately *above* the ~3,330 days that
+  baseline Mandate decay alone gives you. A term cannot be waited out: the only
+  way to reach the end is to hold stability high enough for long enough that
+  approval buys back the difference. The win condition is "govern well",
+  expressed as a number rather than as a rule. Every winning harness run
+  finished with between **1 and 25 Mandate out of 100**, and those are scripts
+  that never misclick.
+- **Six leaders**, each a buff, a handicap and a mechanic — and every one of
+  those is an ordinary `mods`/`flags` payload. **Phase 4 needed no new
+  mechanism at all**, which is the whole argument for the modifier layer built
+  last phase. Two leaders hand you a tier-2 tech node's rule on day one by
+  reusing its flag, which also means researching that node later is redundant
+  *for them* — a real strategic difference that cost zero lines of code.
+- **16 events, 43 choices**, with a scheduler that filters on the state of the
+  country *first* and rolls *second*. That ordering is the whole design: what
+  *can* happen is decided by what you have been ignoring, and chance only picks
+  between things that were already true. An event fires roughly every four
+  minutes of play, pauses the clock, and restores the speed you were running at
+  when you answer.
+- Event choices can leave **timed modifiers** behind — a wage settlement that
+  raises upkeep for 900 days, an autonomy precedent that costs 8% of Treasury
+  for two years. They are modifier payloads with an expiry, so they needed one
+  function to add and one to drop.
+- **Scoring and a scoreboard.** One number per term, weighted in
+  `BALANCE.scoring` so what the game thinks a good term *is* stays arguable in
+  a data file. Calm is a *multiplier*, not an addend, which is what stops a
+  huge permanently-burning country outscoring a smaller one that was governed.
+  Best scores live in their own `localStorage` key, because a best score has to
+  outlive the runs it describes.
+- The Events tab is the **run log**; every tab in the overlay is now real, and
+  `src/ui/overlay.js` still knows nothing about what any of them contain.
+
+**Broke / learned**
+- **The leader screen could be skipped entirely, and I wrote the bug myself.**
+  `main.js` builds a provisional world at boot so the map has something to draw
+  behind the leader screen. The phone lifecycle hooks save on `pagehide` — so
+  opening the game and reloading before choosing anybody saved the placeholder,
+  found it on the next boot, skipped the leader screen and dropped the player
+  into a run under a leader they never picked. Caught by a Playwright test that
+  reloaded mid-setup. Fixed with a `started` flag the save function refuses
+  outright: one guard, in the one place that writes.
+- **Two thirds of the seed variance I blamed on events was the appointee pool.**
+  Some seeds ended at 800 days and some at 3,000, and the obvious suspect was
+  the brand-new system. Turning events off changed a catastrophic seed from 897
+  days to 897 days. The real cause was a harness style that hired every
+  candidate it could see regardless of salary — which bankrupts a government
+  inside three years, exactly as Phase 3 designed. A harness bug wearing a
+  balance bug's clothes, and only a controlled comparison could tell them
+  apart.
+- **A `natural.base` handicap is far more punishing than it looks**, because it
+  interacts with the unrest cliff at 35. The Comptroller's −5 meant a region
+  needed development 13 instead of 9 just to stay out of unrest, and with
+  neighbour contagion on top, twelve of sixteen regions fell over by year two
+  on every seed. The leader lost at ~1,000 days however it was played. Replaced
+  with a weaker Public Works, which changes how it plays instead of whether it
+  loses.
+- **A flag that is a fine crisis tool is a suicide button held continuously.**
+  The Comptroller's mechanic is Deficit Financing from day one, and a permanent
+  full shortfall burns 0.08 Mandate a day on top of the baseline. Gave it a new
+  `austerityMandate.mult` key at 0.5 — which is a two-line change precisely
+  because the flag was never special-cased in the sim.
+- **Garrisons: narrowed, not fixed.** Halved the Mandate cost (3 → 1.5, the
+  standing Phase 3 finding) and gave the Marshal a 40% upkeep cut. It moved the
+  Marshal from hopeless to 100 days short — but a plain build-focused style
+  *still* outlives the garrison-focused one for the leader built around
+  garrisons. Logged rather than papered over: the honest fix is a crisis you
+  cannot invest your way out of, and this phase's crisis events are not sharp
+  enough to be that yet.
+
+**Next**
+- Phase 5: the full balance pass, and the headless harness has now been
+  rewritten from scratch for the third phase running. It is overdue a home in
+  the repo.
+- Sharpen the crisis events so neglect outruns a Treasury surplus — that is
+  also the remaining answer on garrisons.
+- Political Capital still pins at its cap late in a good term. Events spend it,
+  but not enough.
+- Still worth starting now: recruit the 12 Play Store testers (14-day clock).

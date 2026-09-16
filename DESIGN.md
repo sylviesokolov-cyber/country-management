@@ -219,17 +219,77 @@ goes bankrupt through exactly the same austerity rule as an over-built one.
 
 ### 2.5 Leaders
 
-At run start the player picks one of 4–6 leaders. Each has:
+*Live as of Phase 4 — `data/leaders.js`, six of them.*
+
+At run start the player picks one of six leaders. Each has:
 
 - a **starting buff**
 - a **handicap**
-- ideally a **unique mechanic** that changes how a system behaves for them
+- a **unique mechanic** that changes how a system behaves for them
 
-Leaders are the primary replayability driver, so they must stay **fully
-data-driven** (`data/leaders.js`) — adding a leader should be adding an object,
-never writing code. When a leader needs a unique mechanic, express it as a
-named flag or modifier the simulation checks, not as a special case branching
-on the leader's id.
+Leaders are the primary replayability driver, so they stay **fully
+data-driven** — adding a leader is adding an object, never writing code. All
+three payloads are the same `mods`/`flags` shape every other system uses, so
+Phase 4 needed **no new mechanism at all**: there is no `if (leader === ...)`
+anywhere in `src/`.
+
+Two leaders' mechanics are a tech node's flag handed over on day one
+(`garrisonBlocksContagion`, `austerityHitsMandate`) and one reuses a modifier
+key (`spillover.perDevelopment`). That is deliberate: it costs nothing, and it
+means researching that node later is *redundant for them*, which is itself a
+strategic difference.
+
+**Difficulty is measured, not asserted.** Each leader carries a `difficulty`
+that comes from running the same strategy against six seeds in the harness (the
+table is in `BALANCE.md`), and the selection screen shows it. A player who
+picks the hardest leader first and loses should know they picked the hard one
+rather than conclude the game is unfair.
+
+### 2.6 Events
+
+*Live as of Phase 4 — `data/events.js`, 16 events and 43 choices.*
+
+The purpose of an event is not surprise, it is **pressure that argues with your
+plan**. An event that fires blind is a dice roll and the player learns nothing
+from it; an event that fires because three regions are in unrest and the
+Treasury is empty is the game telling you what you have been ignoring.
+
+So the scheduler **filters on the state of the country first and rolls
+second**. Every event carries `requires`, only eligible events enter the draw,
+and weight decides between them. That ordering is what makes an event read as a
+consequence.
+
+The same design rule as the tech tree applies to a choice: it must change what
+you do next, not just move a number. "Pay 200" versus "pay 400" is not a
+choice. "Pay now" versus "let a region burn for a year" is. A choice can leave
+a **timed modifier** behind — a wage settlement that raises upkeep for 900
+days, an autonomy precedent that costs 8% of Treasury for two years — which is
+an ordinary modifier payload with an expiry.
+
+An event pauses the clock and takes over the screen, and the game returns to
+the speed you were running at when you answer. A branching choice read while
+sixteen regions drift is not a choice, it is a reflex test.
+
+### 2.7 Winning, losing and the score
+
+A run ends one of two ways, and both go through one function so the score is
+computed exactly one way:
+
+- **Mandate reaches zero** — the run is lost.
+- **The full term is served** (`mandate.termDays`, 3,650 days) — the run is won.
+
+The term length sits deliberately *above* the ~3,330 days that baseline decay
+alone allows, so a term cannot be waited out. The only way to reach the end is
+to keep national stability above `approvalPivot` long enough that approval buys
+back the difference. The win condition is "govern well", expressed as a number.
+
+The score weights live in `BALANCE.scoring`, so what the game thinks a good
+term *is* stays arguable in a data file. One weight is load-bearing: the share
+of the term free of unrest is a **multiplier**, not an addend, which is what
+stops a huge permanently-burning country outscoring a smaller one that was
+actually governed. Best scores are kept per leader in their own `localStorage`
+key — deliberately not in the save, which is one run and is cleared when the
+next begins.
 
 ---
 
@@ -435,7 +495,8 @@ Full checklist in `TODO.md`. In short:
    modifier layer that lets tech, appointees and policies all change the
    simulation without touching it, appointee hiring/posting, and standing
    policies.
-4. **Phase 4** — leader selection, random events, run summary and scoring.
+4. **Phase 4 (done)** — six leaders, 16 conditional events with timed
+   consequences, the run log, a win condition, scoring and per-leader bests.
 5. **Phase 5** — balance tuning, polish, save/load hardening.
 6. **Phase 6** — Capacitor wrap, signed AAB pipeline, Play Store prep.
 
@@ -459,8 +520,12 @@ Full checklist in `TODO.md`. In short:
   through `src/modifiers.js`, not add a branch to `src/sim.js`. If it needs a
   key the sim doesn't read yet, add the key to `Mods.READ_KEYS` in the same
   commit as the line that reads it.
-- Any mutation of tech, appointees or policies must bump `state.modVersion`
-  (the sim's `touch()`), or the modifier cache will keep serving the old
-  government.
+- Any mutation of tech, appointees, policies or event effects must bump
+  `state.modVersion` (the sim's `touch()`), or the modifier cache will keep
+  serving the old government.
+- A run only exists once a leader has been chosen. `State.save()` refuses a
+  state whose `started` is false — without that guard the provisional world
+  built at boot gets persisted by the `pagehide` hook and the leader screen is
+  skipped on the next load.
 - Append a `DEVLOG.md` entry at the end of every session.
 - Record every balance change in `BALANCE.md` with the reasoning.

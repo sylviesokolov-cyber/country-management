@@ -1207,3 +1207,326 @@
    attached to this region that I am paying for?". */
 .garrison-note--governor { color: var(--c-text-dim); }
 .garrison-note--governor .garrison-note__icon { color: var(--c-accent); }
+
+/* ===========================================================================
+   PHASE 4 — LEADERS, EVENTS AND THE RUN LOG
+   ---------------------------------------------------------------------------
+   Three new full-screen surfaces, all of them reusing `.veil` so the scrim,
+   the blur and the fade are defined once. What differs is only what sits on
+   top of it.
+
+   The hard constraint throughout is the same one the rest of the game has:
+   ~390px of height in landscape. A leader card and an event card both want to
+   be a paragraph of prose, and there is room for exactly one of them at a
+   time — which is why the event card is modal and the leader grid scrolls.
+   ======================================================================== */
+
+/* --- the term readout in the clock -------------------------------------- */
+.clock__term {
+  font-family: var(--font-num);
+  font-size: var(--f-xs);
+  color: var(--c-text-faint);
+  letter-spacing: 0.02em;
+}
+
+/* --- shared: a scrolling full-screen surface ---------------------------- */
+.veil--leaders .leader-select,
+.veil--event .event-card {
+  max-height: calc(100% - var(--s-4));
+}
+
+/* --- leader select ------------------------------------------------------ */
+.leader-select {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+  width: min(100%, 1100px);
+  padding: var(--s-3) var(--s-4);
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.leader-select__head { text-align: center; }
+.leader-select__head .panel__subtitle { margin: var(--s-1) 0 0; }
+
+.leader-grid {
+  display: grid;
+  /* Six cards. Three columns on a big landscape phone, two on a small one,
+     and the grid scrolls — a leader is a paragraph, and six paragraphs do not
+     fit in 390px however they are arranged. */
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: var(--s-2);
+}
+
+.leader {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+  text-align: left;
+  font: inherit;
+  color: var(--c-text);
+  background: var(--c-surface);
+  border: 1px solid var(--c-line);
+  border-top: 3px solid var(--c-line-strong);
+  border-radius: var(--r-md);
+  padding: var(--s-3);
+  cursor: pointer;
+}
+
+.leader:active { background: var(--c-surface-2); }
+
+/* The top edge carries the difficulty, so the grid reads as a ladder before
+   a single word is read. */
+.leader[data-difficulty='1'] { border-top-color: var(--c-band-secure); }
+.leader[data-difficulty='2'] { border-top-color: var(--c-band-stable); }
+.leader[data-difficulty='3'] { border-top-color: var(--c-band-strained); }
+.leader[data-difficulty='4'] { border-top-color: var(--c-band-crisis); }
+
+.leader__title { font-size: var(--f-md); font-weight: 700; }
+
+.leader__name {
+  font-size: var(--f-xs);
+  color: var(--c-text-dim);
+}
+
+.leader__blurb {
+  margin: 0;
+  font-size: var(--f-xs);
+  line-height: 1.35;
+  color: var(--c-text-dim);
+}
+
+.leader__traits { display: flex; flex-direction: column; gap: var(--s-1); }
+
+.leader-trait {
+  display: flex;
+  gap: var(--s-2);
+  align-items: baseline;
+  font-size: var(--f-xs);
+  line-height: 1.3;
+}
+
+.leader-trait__icon { flex: 0 0 auto; font-size: 10px; }
+.leader-trait[data-kind='buff']     .leader-trait__icon { color: var(--c-band-secure); }
+.leader-trait[data-kind='handicap'] .leader-trait__icon { color: var(--c-band-unrest); }
+.leader-trait[data-kind='mechanic'] .leader-trait__icon { color: var(--c-capital); }
+
+/* The mechanic is the reason to pick this leader, so it is the one that reads
+   as a statement rather than as a line item. */
+.leader-trait[data-kind='mechanic'] .leader-trait__text {
+  color: var(--c-text);
+  font-weight: 600;
+}
+
+.leader__foot {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: var(--s-2);
+  margin-top: auto;
+  padding-top: var(--s-2);
+  border-top: 1px solid var(--c-line);
+  font-size: var(--f-xs);
+}
+
+.leader__difficulty { color: var(--c-text-dim); text-transform: uppercase; letter-spacing: 0.05em; }
+.leader[data-difficulty='3'] .leader__difficulty { color: var(--c-band-strained); }
+.leader[data-difficulty='4'] .leader__difficulty { color: var(--c-band-crisis); }
+
+.leader__best { font-family: var(--font-num); color: var(--c-treasury); }
+
+/* --- the event card ----------------------------------------------------- */
+.event-card {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  width: min(100%, 720px);
+  gap: var(--s-2);
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.event-card__day {
+  font-family: var(--font-num);
+  font-size: var(--f-xs);
+  color: var(--c-text-faint);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.event-card__text {
+  margin: 0;
+  font-size: var(--f-sm);
+  line-height: 1.4;
+  color: var(--c-text-dim);
+}
+
+.event-card__choices {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+  width: 100%;
+}
+
+.choice {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--s-3);
+  width: 100%;
+  min-height: var(--tap);
+  text-align: left;
+  font: inherit;
+  color: var(--c-text);
+  background: var(--c-surface-2);
+  border: 1px solid var(--c-line);
+  border-radius: var(--r-sm);
+  padding: var(--s-2) var(--s-3);
+  cursor: pointer;
+}
+
+.choice:active { background: var(--c-surface-3); }
+.choice[disabled] { opacity: 0.4; cursor: default; }
+
+.choice__main { flex: 1 1 auto; min-width: 0; }
+.choice__label { font-size: var(--f-sm); font-weight: 600; }
+
+.choice__blurb {
+  font-size: var(--f-xs);
+  line-height: 1.3;
+  color: var(--c-text-dim);
+  margin-top: 2px;
+}
+
+.choice__side {
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+  font-family: var(--font-num);
+  font-size: var(--f-xs);
+}
+
+.choice__cost { color: var(--c-treasury); }
+.choice__mandate { color: var(--c-mandate); }
+
+/* A consequence that outlives the decision is the easiest thing on the button
+   to miss and the most important thing on it. */
+.choice__lasting {
+  color: var(--c-capital);
+  max-width: 180px;
+  text-align: right;
+  white-space: normal;
+  line-height: 1.25;
+}
+
+.choice__reason { color: var(--c-text-faint); }
+
+/* --- the run log (Events tab) ------------------------------------------- */
+.log-head {
+  display: flex;
+  align-items: baseline;
+  gap: var(--s-2);
+  margin-bottom: var(--s-3);
+  padding-bottom: var(--s-2);
+  border-bottom: 1px solid var(--c-line);
+}
+
+.log-head__title { font-size: var(--f-md); font-weight: 700; }
+.log-head__name { font-size: var(--f-xs); color: var(--c-text-dim); }
+
+.effect-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: var(--s-1);
+  margin-bottom: var(--s-3);
+}
+
+.effect-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: var(--s-2);
+  font-size: var(--f-xs);
+  background: var(--c-surface);
+  border: 1px solid var(--c-line);
+  border-left: 3px solid var(--c-capital);
+  border-radius: var(--r-sm);
+  padding: var(--s-1) var(--s-2);
+}
+
+.effect-row__label { color: var(--c-text); }
+.effect-row__left { font-family: var(--font-num); color: var(--c-text-faint); flex: 0 0 auto; }
+
+.log-list { display: flex; flex-direction: column; gap: var(--s-1); }
+
+.log-row {
+  display: flex;
+  gap: var(--s-2);
+  align-items: baseline;
+  padding: var(--s-1) var(--s-2);
+  border-left: 2px solid var(--c-line);
+  font-size: var(--f-xs);
+}
+
+.log-row__icon { flex: 0 0 auto; color: var(--c-text-faint); }
+.log-row__body { min-width: 0; flex: 1 1 auto; }
+.log-row__text { color: var(--c-text); line-height: 1.3; }
+.log-row__day { font-family: var(--font-num); color: var(--c-text-faint); }
+
+.log-row[data-kind='event']   { border-left-color: var(--c-band-strained); }
+.log-row[data-kind='tech']    { border-left-color: var(--c-capital); }
+.log-row[data-kind='ministry']{ border-left-color: var(--c-accent); }
+.log-row[data-kind='win']     { border-left-color: var(--c-band-secure); }
+.log-row[data-kind='lose']    { border-left-color: var(--c-danger); }
+
+/* --- the score on the end-of-term screen -------------------------------- */
+.veil__score { text-align: center; }
+
+.veil__score__value {
+  font-family: var(--font-num);
+  font-size: var(--f-xl);
+  font-weight: 700;
+  color: var(--c-treasury);
+  line-height: 1.1;
+}
+
+.veil__score__label {
+  font-size: var(--f-xs);
+  color: var(--c-text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.veil__buttons { display: flex; gap: var(--s-2); }
+
+/* `.veil` centres its text, which is right for a two-line obituary and wrong
+   for a page of prose with choices under it. Both Phase 4 surfaces opt out. */
+.event-card { text-align: left; }
+.veil--leaders { text-align: left; }
+.leader-select__head { text-align: center; }
+
+/* Six leader cards do not fit in 390px of landscape, so the grid scrolls and
+   the foot of a card is often below the fold. The difficulty therefore sits in
+   the head, beside the title, where it is always the first thing read. */
+.leader__title-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--s-2);
+}
+
+.leader__foot { justify-content: flex-end; }
+
+/* The end-of-term card is taller than a landscape phone once the summary has
+   ten rows in it, so the way out has to stay reachable without scrolling to
+   find it. */
+.veil__buttons {
+  position: sticky;
+  bottom: calc(var(--s-4) * -1);
+  justify-content: center;
+  margin: var(--s-3) calc(var(--s-4) * -1) calc(var(--s-4) * -1);
+  padding: var(--s-3) var(--s-4);
+  background: linear-gradient(to top, var(--c-surface) 65%, transparent);
+}
+.leader__best[data-empty='true'] { color: var(--c-text-faint); }

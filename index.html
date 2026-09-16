@@ -106,7 +106,11 @@
         <span aria-hidden="true">&#10021;</span>
       </button>
       <span class="clock__date" id="hud-date">1 Jan 2027</span>
-      <!-- data-speed maps straight onto state.speed. -->
+      <!-- How far through the term. A run now has a far end as well as a near
+         one, and a player who doesn't know the term is finite can't pace it.
+         Filled in by src/ui/hud.js from BALANCE.mandate.termDays. -->
+    <span class="clock__term" id="hud-term">Year 1 of 10</span>
+    <!-- data-speed maps straight onto state.speed. -->
       <div class="speed" role="group" aria-label="Game speed">
         <button class="speed__btn" data-speed="0" aria-pressed="false" aria-label="Pause">&#9208;</button>
         <button class="speed__btn" data-speed="1" aria-pressed="true"  aria-label="Normal speed">1&times;</button>
@@ -164,16 +168,46 @@
     <div class="overlay__body scrollable" id="overlay-body"></div>
   </section>
 
-  <!-- ------------------------------------------------- RUN OVER (Phase 2) -->
-  <!-- Built once when the run ends (see src/main.js): the reason, what the
-       term amounted to, and the way back in. Phase 4 turns the figures into a
-       real score. -->
+  <!-- ----------------------------------------------------- EVENT (Phase 4) -->
+  <!-- A branching choice, over everything else, with the clock stopped. It has
+       to interrupt: a decision read while sixteen regions drift is a reflex
+       test, not a decision. Built entirely by src/ui/events.js. -->
+  <div class="veil veil--event" id="event-veil">
+    <div class="veil__card event-card">
+      <div class="event-card__day" id="event-day"></div>
+      <div class="veil__title" id="event-title"></div>
+      <p class="event-card__text" id="event-text"></p>
+      <div class="event-card__choices" id="event-choices"></div>
+    </div>
+  </div>
+
+  <!-- ------------------------------------------------- RUN OVER (Phase 4) -->
+  <!-- Built once when the run ends (see src/main.js). A run now ends one of
+       two ways — the term served, or the Mandate gone — and this screen reads
+       very differently for each. -->
   <div class="veil" id="veil">
     <div class="veil__card">
       <div class="veil__title" id="veil-title">Your term is over</div>
       <p class="veil__reason" id="veil-reason"></p>
+      <div class="veil__score" id="veil-score"></div>
       <dl class="veil__stats" id="veil-stats"></dl>
-      <button class="veil__restart" id="veil-restart">Start a new run</button>
+      <div class="veil__buttons">
+        <button class="veil__restart" id="veil-restart">Choose a new leader</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ------------------------------------------------ LEADER SELECT (P4) -->
+  <!-- The first thing a new run shows. Built by src/ui/leaders.js from
+       data/leaders.js — this file has no idea how many leaders there are. -->
+  <div class="veil veil--leaders is-open" id="leader-veil">
+    <div class="leader-select">
+      <div class="leader-select__head">
+        <div class="veil__title">Who takes office?</div>
+        <p class="panel__subtitle">One term. Ten years. Sixteen regions that
+          have heard it all before.</p>
+      </div>
+      <div class="leader-grid" id="leader-grid"></div>
     </div>
   </div>
 </div>
@@ -196,6 +230,9 @@
 <script src="data/traits.js"></script>
 <script src="data/appointees.js"></script>
 <script src="data/policies.js"></script>
+<!-- Phase 4: who you are, and what the country does about it. -->
+<script src="data/leaders.js"></script>
+<script src="data/events.js"></script>
 
 <script src="src/util.js"></script>
 <script src="src/state.js"></script>
@@ -210,6 +247,8 @@
 <script src="src/ui/hud.js"></script>
 <script src="src/ui/panel.js"></script>
 <script src="src/ui/ministry.js"></script>
+<script src="src/ui/events.js"></script>
+<script src="src/ui/leaders.js"></script>
 <script src="src/ui/overlay.js"></script>
 <script src="src/ui/fullscreen.js"></script>
 

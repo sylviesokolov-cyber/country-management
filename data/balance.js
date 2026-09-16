@@ -25,12 +25,12 @@
   Mandate.BALANCE = {
     /* Bumped when the meaning of these numbers changes enough that old saves
      * would be balanced differently. Recorded into saves for debugging. */
-    balanceVersion: 3,
+    balanceVersion: 4,
 
     /* Actions carry the phase that made them real. Anything above this number
      * is authored-but-not-live, so future phases can land their data before
      * their logic without the buttons going live early. */
-    implementedPhase: 3,
+    implementedPhase: 4,
 
     time: {
       /* Real milliseconds per simulated day, per speed setting.
@@ -115,6 +115,19 @@
        * not merely bad). */
       decayPerUnstableRegionPerDay: 0.008,
       decayPerUnstablePointPerDay: 0.0006,
+      /* --- THE TERM: the win condition ------------------------------------
+       * Phase 4 gives the clock a far end as well as a near one. Survive to
+       * `termDays` with Mandate left and the term is COMPLETED — the run is
+       * won, not merely not-yet-lost.
+       *
+       * 3,650 days is ten in-game years, and ~55 minutes at 1x: the top of the
+       * 45-60 minute target window. It sits deliberately ABOVE the ~3,330 days
+       * that baseline decay alone gives you, so a term cannot be waited out.
+       * The only way to reach the end is to keep national stability above
+       * `approvalPivot` for long enough that approval buys back the difference
+       * — i.e. the win condition is "govern well", expressed as a number
+       * rather than as a rule. */
+      termDays: 3650,
       unstableBelow: UNSTABLE_BELOW,
       /* Used ONLY under the `austerityHitsMandate` flag (Deficit Financing).
        * The unpaid SHARE of the day's bill is charged here instead of eating
@@ -278,7 +291,14 @@
         blurb: 'Station troops. Holds the region steady, costs you daily.',
         cost: { treasury: 60, manpower: 6 },
         effect: { stability: 14, garrisoned: true },
-        mandateCost: 3,
+        /* Was 3 through Phases 2-3, and that made garrisons a trap: BALANCE.md
+         * logged a harness sweep where every extra garrison shortened the run
+         * (0 -> 3,350 days, 5 -> 2,295). 3 Mandate is a hundred days of
+         * baseline decay for a measure that is supposed to be TEMPORARY
+         * triage. At 1.5 a garrison is a tool you reach for in a crisis
+         * instead of one you regret, and the Marshal — whose entire identity
+         * is holding provinces — becomes playable. */
+        mandateCost: 1.5,
         requires: { garrisoned: false },
         phase: 2,
       },
@@ -350,6 +370,72 @@
       /* Chance a generated candidate carries a drawback. A little over half,
        * because a pool of clean candidates makes hiring a formality. */
       drawbackChance: 0.55,
+    },
+
+    /* --- PHASE 4: EVENTS -------------------------------------------------
+     * The scheduler's job is to make the country feel like it has its own
+     * agenda without ever feeling random. Three rules do that:
+     *
+     *   - events are WEIGHTED and CONDITIONAL, so what can happen depends on
+     *     the state of the country (see data/events.js);
+     *   - a global cooldown stops two crises landing back to back;
+     *   - `graceDays` keeps the opening quiet, so the player learns the board
+     *     before it starts arguing with them.
+     *
+     * The chance is per day and small. At 0.009 the expected gap is the
+     * 120-day cooldown plus ~110 days of waiting, and the harness measures a
+     * full 3,650-day term at 14 events — one roughly every four minutes of
+     * real play. Often enough to shape a run, rare enough that each one is an
+     * occasion rather than an interruption. */
+    events: {
+      chancePerDay: 0.009,
+      globalCooldownDays: 120,
+      graceDays: 200,
+      /* An event pauses the game. It has to: a branching choice the player
+       * has to read while regions drift is not a choice, it is a reflex test.
+       * Speed is restored when they answer. */
+      pauseOnFire: true,
+      /* Temporary modifiers an event choice can leave behind live in
+       * `state.effects` and expire on their own. This caps how many can be
+       * running at once, purely so a pathological data file can't unbound the
+       * modifier table. */
+      maxActiveEffects: 12,
+    },
+
+    /* --- PHASE 4: THE RUN LOG --------------------------------------------
+     * The Events tab doubles as the run log. Entries are cheap (a day, a kind
+     * and a line of text) but a 3,650-day run would still accumulate a few
+     * hundred, and they go into every save. Oldest entries are dropped past
+     * this cap — the recent past is what a player actually reads back. */
+    log: {
+      maxEntries: 120,
+    },
+
+    /* --- PHASE 4: SCORING -------------------------------------------------
+     * One number for a whole term, so runs can be compared and a leader can
+     * have a best.
+     *
+     * The weights encode what the game thinks a good term IS, so they are
+     * worth arguing about: development is the thing you can only get by
+     * spending the clock on it, so it pays most; days are worth little each
+     * because surviving is the floor, not the achievement; and `calmBonus`
+     * multiplies the lot by how much of the term was free of unrest, which is
+     * what stops a huge, permanently-burning country outscoring a smaller
+     * country that was actually governed.
+     *
+     * `termCompletedBonus` is large on purpose: finishing the term is the win
+     * condition, and a won run should never score below a lost one. */
+    scoring: {
+      perDaySurvived: 1,
+      perDevelopmentBuilt: 6,
+      perStabilityPoint: 40,
+      perTechCompleted: 120,
+      termCompletedBonus: 6000,
+      /* Final score is multiplied by (calmFloor + (1 - calmFloor) * calm),
+       * where `calm` is the share of the term with no region in unrest. A
+       * term spent entirely in crisis keeps `calmFloor` of its score. */
+      calmFloor: 0.35,
+      bestScoresKey: 'mandate:best',
     },
 
     /* --- PHASE 3: POLICIES ------------------------------------------------

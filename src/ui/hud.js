@@ -34,6 +34,7 @@
       mandateFill: Util.el('hud-mandate-fill'),
       mandateGauge: Util.el('hud-mandate-gauge'),
       date: Util.el('hud-date'),
+      term: Util.el('hud-term'),
     };
 
     speedButtons = Array.prototype.slice.call(document.querySelectorAll('.speed__btn'));
@@ -95,6 +96,15 @@
     }
 
     View.setText(els.date, Util.formatDate(Util.dateFromDay(B.time.startDate, state.day)));
+
+    /* How far through the term. Phase 4 gave the clock a far end as well as a
+     * near one, and a player who doesn't know the term is finite cannot pace
+     * it: "Year 8 of 10" changes what you do with your last Political Capital
+     * in a way that a date alone never will. Years, not days, because the
+     * decision it informs is a coarse one. */
+    var termYears = Math.ceil(B.mandate.termDays / 365);
+    var year = Math.min(termYears, Math.floor(state.day / 365) + 1);
+    View.setText(els.term, 'Year ' + year + ' of ' + termYears);
 
     /* aria-pressed doubles as the CSS hook for the active speed — one source
      * of truth for "which speed is selected". */

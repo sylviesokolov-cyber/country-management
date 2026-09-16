@@ -6,10 +6,11 @@
  * for a permanent tab bar, so the whole screen becomes the menu instead, opened
  * from the "Ministry" and "Regions" buttons in the bottom corners.
  *
- * As of Phase 3 four of the five tabs are real. Each one is a single call into
- * another module (src/ui/ministry.js) — this file still knows nothing about
- * what a tech node or an appointee is, which is what kept it the same size
- * across three phases. Events is the last placeholder; it lands in Phase 4.
+ * As of Phase 4 every tab is real, and each one is a single call into another
+ * module (src/ui/ministry.js, src/ui/events.js). This file still knows nothing
+ * about what a tech node, an appointee or an event is, which is why it has
+ * stayed the same size across four phases: adding a system has never once
+ * meant editing the shell.
  * ========================================================================== */
 (function (Mandate) {
   'use strict';
@@ -22,8 +23,7 @@
   var tabButtons = [];
   var handlers = {};
 
-  /* Each tab is { title, render(state) -> fills bodyEl }. Placeholder tabs just
-   * describe what is coming; swapping one for a real UI touches nothing else. */
+  /* Each tab is { title, render(state) -> fills bodyEl }. Nothing else. */
   var TABS = {
     tech: {
       title: 'Technology',
@@ -37,14 +37,13 @@
       title: 'Policies',
       render: function (state) { Mandate.Ministry.renderPolicies(bodyEl, state); },
     },
+    /* The Events tab is the RUN LOG. Deliberately the same tab the event card
+     * belongs to: "what is happening" and "what has happened" are one question
+     * asked at different times, and a separate History tab is a tab nobody
+     * opens. */
     events: {
       title: 'Events',
-      render: function () {
-        setPlaceholder('Events',
-          'Timed crises and opportunities with branching choices, weighted by ' +
-          'the actual state of the country, plus the running log of what your ' +
-          'government has done.', 4);
-      },
+      render: function (state) { Mandate.EventUI.renderLog(bodyEl, state); },
     },
     regions: {
       title: 'Regions',
@@ -133,13 +132,6 @@
     },
   };
 
-  /* Still used by the Events tab, which is Phase 4's. */
-  function setPlaceholder(title, text, phase) {
-    bodyEl.innerHTML =
-      '<h3>' + title + '</h3><p>' + text + '</p>' +
-      '<p class="note">Arrives in <strong>Phase ' + phase + '</strong>.</p>';
-  }
-
   Overlay.build = function (opts) {
     handlers = opts;
     overlayEl = Util.el('overlay');
@@ -202,9 +194,7 @@
   var lastRenderedTab = null;
   Overlay.render = function (state) {
     var tabId = View.viewState.activeTab;
-    /* Events is a static placeholder — rebuilding it every day would be pure
-     * cost. Everything else shows live numbers. */
-    if (!tabId || tabId === 'events') return;
+    if (!tabId) return;
     if (state.day === lastRenderedDay && tabId === lastRenderedTab) return;
     lastRenderedDay = state.day;
     lastRenderedTab = tabId;

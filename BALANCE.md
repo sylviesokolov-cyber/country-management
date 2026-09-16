@@ -326,3 +326,97 @@ normal PC income is 0.00/day and the node pays 0.147/day.
 - Garrisons, as above.
 - Nothing has been tuned against a run with **events** in it, and Phase 4 adds
   the first pressure these systems will face that the player cannot see coming.
+
+---
+
+## Phase 4 — leaders, events and closure (balance v4)
+
+This phase added the two things the game had been missing at either end of a
+run: **who you are** at the start, and **what winning means** at the finish.
+Neither needed new machinery — a leader is three `mods`/`flags` payloads and an
+event's lasting consequence is a fourth with an expiry, all merged by
+`src/modifiers.js` exactly like a tech node. The balance work was therefore
+entirely about numbers, which is what the modifier layer was built to buy.
+
+### The win condition
+
+`mandate.termDays: 3650` — ten in-game years, ~55 minutes at 1×, the top of the
+45–60 minute target. It sits deliberately **above** the ~3,330 days that
+baseline decay alone gives you, so a term cannot be waited out: the only way to
+reach the end is to hold national stability above `approvalPivot` long enough
+that approval buys back the difference. The win condition is "govern well",
+written as a number.
+
+The margins say the number is right. Across the six leader-matched harness
+styles, every winning run finished with between **1 and 25 Mandate out of 100**
+— and these are scripts that never misclick and answer every event instantly.
+A human has considerably less room than that.
+
+### Changed
+
+| Value | From | To | Why |
+| --- | --- | --- | --- |
+| `actions.garrison.mandateCost` | 3 | **1.5** | The standing Phase 3 finding, answered. 3 Mandate is a hundred days of baseline decay for a measure that is supposed to be temporary triage, and the harness showed every extra garrison shortening the run. At 1.5 a garrison is a tool rather than a regret — and the Marshal, whose whole identity is holding provinces, becomes playable. |
+| Comptroller handicap | `natural.base: -5` | `effect.publicWorks.mult: 0.65` | A flat shift to where regions settle interacts brutally with the unrest cliff at 35: −5 means a region needs development 13 instead of 9 just to stay out of unrest, and with neighbour contagion on top the harness watched twelve of sixteen regions fall over by year two on **every** seed. The leader died at ~1,000 days regardless of how it was played. A handicap should change how a leader plays, not decide whether they lose. |
+| Marshal buff | `garrisonBonus` + raise cost | + `garrisonUpkeep.mult: 0.60` | The upkeep multiplier was missing and it is the one that matters. A garrison's trap was never the 60 Treasury to raise it, it was the 0.5 Treasury every day forever. |
+| Comptroller mechanic | `austerityHitsMandate` alone | + `austerityMandate.mult: 0.5` | The bare flag is the tier-2 tech node's rule, which is a crisis tool. Held continuously — which is the Comptroller's entire character — a full shortfall burns 0.08 Mandate a day on top of the baseline and kills the run inside three years. Halving it turns a suicide button into a way of running a government. |
+| `events.chancePerDay` | 0.006 | 0.009 | 0.006 produced ~9 events in a full term. 0.009 measures at 14, or one roughly every four minutes of real play. |
+
+### The difficulty ladder is measured, not asserted
+
+Every leader running the **same** build-focused strategy, six seeds:
+
+| Leader | Wins | Median days | Rated |
+| --- | --- | --- | --- |
+| Reformer | 6/6 | 3,650 | Forgiving |
+| Tribune | 5/6 | 3,650 | Forgiving |
+| Caretaker | 3/6 | 3,650 | Steady |
+| Engineer | 1/6 | 3,474 | Demanding |
+| Marshal | 0/6 | 3,548 | Demanding |
+| Comptroller | 0/6 | 3,181 | Punishing |
+
+The rating shown on the selection screen comes from this table. Showing it is
+deliberate: a player who picks the Comptroller first and loses should know they
+picked the hard one rather than conclude the game is unfair.
+
+And with each leader running **its own** matched strategy (garrison-and-hold
+for the Marshal, deficit-and-build for the Comptroller, free-policy-switching
+for the Caretaker, and so on), six seeds each:
+
+| Leader | Wins | Median days | Median score | Median stability |
+| --- | --- | --- | --- | --- |
+| Reformer | 6/6 | 3,650 | 15,560 | 74 |
+| Tribune | 6/6 | 3,650 | 12,716 | 61 |
+| Caretaker | 6/6 | 3,650 | 17,637 | 89 |
+| Engineer | 3/6 | 3,650 | 12,880 | 60 |
+| Comptroller | 0/6 | 2,986 | 14,656 | **100** |
+| Marshal | 0/6 | 2,770 | 9,852 | 79 |
+
+### What the harness found
+
+- **Two thirds of the seed variance in the first Phase 4 runs was not events at
+  all — it was the appointee pool.** Turning events off changed a catastrophic
+  seed from 897 days to 897 days. The killer was a harness style that hired
+  every candidate it could see regardless of salary, which bankrupts a
+  government inside three years. That is Phase 3 working as designed ("an
+  over-staffed government goes bankrupt like an over-built one") and a harness
+  bug, not a balance bug — but it took a controlled comparison to tell the two
+  apart, and the first instinct was to blame the new system.
+- **Garrisons are still not the optimal route, even for the Marshal.** Under
+  its own garrison-heavy style the Marshal reaches 2,770 days; under a plain
+  build-focused style it reaches 3,548. Halving the Mandate cost and cutting
+  the upkeep by 40% moved it from hopeless to close, but holding provinces
+  remains worse than developing them. The remaining honest fix is a crisis the
+  player cannot simply invest their way out of — which is what events are for,
+  and this phase's crisis events are not yet sharp enough to be that.
+
+### Still open
+
+- Garrisons, as above, now narrowed from "a trap for everyone" to "not the
+  optimal route even for the leader built around them".
+- The Comptroller reaches 100 national stability and a 14,656 score and still
+  loses, because it has no clock relief of any kind. That reads as a coherent
+  identity — the one who fixes the country and runs out of time — but it is one
+  bad seed away from feeling arbitrary.
+- Political Capital still pins at its 100 cap late in a well-run term (carried
+  over from Phase 3). Events spend PC, which helps, but not enough to matter.

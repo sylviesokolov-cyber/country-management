@@ -1,8 +1,10 @@
 /* ============================================================================
  * src/modifiers.js — ONE TABLE OF NUMBERS THAT EVERYTHING ELSE WRITES INTO.
  * ----------------------------------------------------------------------------
- * Phase 3 adds three systems that all want to change the same simulation:
- * tech nodes, appointees and policies. Without a shared mechanism the sim
+ * Phase 3 added three systems that all want to change the same simulation:
+ * tech nodes, appointees and policies. Phase 4 added two more — the LEADER and
+ * timed EVENT EFFECTS — and needed no new mechanism at all, which is the whole
+ * argument for this file. Without a shared mechanism the sim
  * would fill up with `if (state.tech.has('federalDevolution'))`, and every new
  * node would be a code change in src/sim.js. DESIGN.md is explicit that this
  * must not happen (§2.5: "a named flag the simulation checks, not a special
@@ -24,7 +26,9 @@
  * ---------------------------------------------------------------------------
  * SCOPE — the part that makes appointees interesting.
  *
- *   Mods.of(state)              national table: tech + policies + MINISTERS
+ *   Mods.of(state)              national table: the leader, completed tech,
+ *                               active policies, MINISTERS, and any event
+ *                               effect still running
  *   Mods.forRegion(state, id)   the national table, PLUS the traits of the
  *                               governor assigned to that region
  *
@@ -54,11 +58,17 @@
  *   manpowerCap.mult             how much Manpower you can hold     [national]
  *   mandateDecay.mult            the BASELINE drain only            [national]
  *   mandate.perGarrisonPerDay    Mandate per garrison per day       [national]
+ *   austerityMandate.mult        the Mandate price of a deficit,
+ *                                under `austerityHitsMandate`        [national]
  *   research.mult                research points per day            [national]
  *   ministerSlots.add            hiring capacity                    [national]
  *   governorSlots.add            hiring capacity                    [national]
  *   cost.<actionId>.mult         a region action's price              [region]
  *   effect.<actionId>.mult       a region action's size               [region]
+ *   mandateCost.<actionId>.mult  a region action's Mandate price       [region]
+ *   pc.perAction                 Political Capital per region action [national]
+ *   policyCost.mult              what enacting a policy costs        [national]
+ *   policyCooldown.mult          how long a category stays locked    [national]
  *
  * FLAGS:
  *   austerityHitsMandate    unpaid bills burn Mandate instead of the country
@@ -129,6 +139,14 @@
   function buildNational(state) {
     var table = blank();
 
+    /* --- the leader, first ---
+     * Their buff, handicap and mechanic are three ordinary payloads. Being
+     * first in the merge means nothing (addition and multiplication don't
+     * care), but it reads correctly: this is who you are, and everything
+     * below is what you did about it. */
+    Mandate.LEADERS.payloads(Mandate.LEADERS.byId(state.leaderId))
+      .forEach(function (payload) { apply(table, payload); });
+
     /* --- completed tech --- */
     (state.tech.completed || []).forEach(function (id) {
       apply(table, Mandate.TECH.byId(id));
@@ -144,6 +162,11 @@
       if (person.role !== 'minister') return;
       traitsOf(person).forEach(function (trait) { apply(table, trait); });
     });
+
+    /* --- temporary effects left behind by event choices ---
+     * The sim drops these from the array the day they expire and bumps
+     * modVersion, so an expired effect can never still be in this table. */
+    (state.effects || []).forEach(function (effect) { apply(table, effect); });
 
     return table;
   }
@@ -215,6 +238,12 @@
     Mandate.TECH.nodes.forEach(collect);
     Object.keys(Mandate.TRAITS).forEach(function (k) { collect(Mandate.TRAITS[k]); });
     Mandate.POLICIES.forEach(function (category) { category.options.forEach(collect); });
+    Mandate.LEADERS.forEach(function (leader) {
+      Mandate.LEADERS.payloads(leader).forEach(collect);
+    });
+    Mandate.EVENTS.forEach(function (event) {
+      event.choices.forEach(function (choice) { collect(choice.effect); });
+    });
     return Object.keys(keys).sort();
   };
 
@@ -231,6 +260,9 @@
     'reversion.mult', 'pc.perDay.add', 'pc.perDay.mult', 'manpower.mult',
     'manpowerCap.mult', 'mandateDecay.mult', 'mandate.perGarrisonPerDay',
     'research.mult', 'ministerSlots.add', 'governorSlots.add',
+    /* Phase 4 */
+    'pc.perAction', 'policyCost.mult', 'policyCooldown.mult',
+    'austerityMandate.mult',
   ];
 
   Mods.audit = function () {
@@ -240,7 +272,8 @@
        * so any `cost.<id>.mult` / `effect.<id>.mult` naming a real action is
        * live without being listed one by one. */
       var parts = key.split('.');
-      if ((parts[0] === 'cost' || parts[0] === 'effect') && parts[2] === 'mult') {
+      if ((parts[0] === 'cost' || parts[0] === 'effect' ||
+           parts[0] === 'mandateCost') && parts[2] === 'mult') {
         return !Mandate.BALANCE.actions[parts[1]];
       }
       return read.indexOf(key) === -1;
