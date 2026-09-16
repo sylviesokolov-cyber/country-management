@@ -2,9 +2,10 @@
 
 > **Instruction for every session (human or Claude Code): append a short entry
 > at the bottom before you finish.** Newest entries go at the end. Keep it to
-> three headings — *Built*, *Broke / learned*, *Next* — and keep it short. This
-> file is how a session on a phone weeks later works out where things stand,
-> and it is the first thing to read after `DESIGN.md`.
+> three headings — *Built*, *Broke / learned*, *Next* — and keep it short.
+> This file is how a session on a phone weeks later works out where things
+> stand. See `DESIGN.md`'s opening checklist for where this fits in a
+> session's startup sequence.
 
 Template:
 

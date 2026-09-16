@@ -107,7 +107,7 @@ runs.** Tuning never touches `src/`.
 
 | File | What it's for |
 |------|---------------|
-| [DESIGN.md](DESIGN.md) | The full game design and every architecture decision. Read this first if you're picking the project up cold — including a future Claude Code session. |
+| [DESIGN.md](DESIGN.md) | The full game design and every architecture decision — opens with a numbered checklist for what a fresh session (including a future Claude Code session) should do first. |
 | [TODO.md](TODO.md) | Phased build plan as a checklist. |
 | [DEVLOG.md](DEVLOG.md) | Dated session-by-session log. **Append an entry every session.** |
 | [BALANCE.md](BALANCE.md) | Playtest observations and tuning history. |

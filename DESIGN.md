@@ -1,9 +1,20 @@
 # Mandate — Design & Architecture
 
-> **If you are a Claude Code session picking this project up cold, read this
-> file first.** It contains the complete game design, the architecture rules,
-> and the reasoning behind both. Then check `TODO.md` for the current phase and
-> `DEVLOG.md` for what the last session did.
+> ## New session? Start here, in this order:
+> 1. **Read this whole file.** It's the complete game design and the
+>    architecture rules, and it doesn't change often — the two files below
+>    do, every session.
+> 2. **Open `TODO.md`.** Its checkboxes are the single source of truth for
+>    what's built vs. not. Find the first unchecked phase — that's the work.
+> 3. **Read the last 1-2 entries of `DEVLOG.md`.** That's what the previous
+>    session actually did, what broke, and what it left as "Next".
+> 4. **Before you stop, append a dated entry to `DEVLOG.md`** (template's at
+>    the top of that file) **and tick off whatever you finished in `TODO.md`.**
+>    A session that doesn't do both of these has left no trace for the next
+>    one — treat it as part of the task, not cleanup.
+>
+> `BALANCE.md` and `ANDROID.md` are reference material — open them when the
+> work actually touches tuning or the Android release path, not before.
 
 ---
 
