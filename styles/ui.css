@@ -29,21 +29,30 @@
 
 /* ---------------------------------------------------------------------------
  * RESOURCE CHIPS (top-left)
+ * ----------------------------------------------------------------------
+ * ONE glass card (.chip-group) holding all four chips, not four separate
+ * pills. This matters specifically on short landscape phones: when the row
+ * doesn't fit and wraps, it wraps INSIDE this card, so the second row still
+ * has an opaque background behind it. Four independent floating pills would
+ * otherwise leave the wrapped ones sitting directly on top of the map with
+ * nothing behind them — illegible against a light region, and it read as a
+ * broken/"wobbly" HUD rather than a deliberate two-line layout.
  * ------------------------------------------------------------------------ */
-.chips {
+.chip-group {
   display: flex;
   align-items: center;
-  gap: var(--s-1);
+  gap: var(--s-1) var(--s-3);
   flex-wrap: wrap;
-  max-width: 62vw;   /* never let chips run under the clock cluster */
+  padding: var(--s-1) var(--s-2);
+  /* Never run under the clock cluster on the right, and never grow taller
+     than roughly two rows worth before something has to give. */
+  max-width: min(62vw, 420px);
 }
 
 .chip {
   display: flex;
   align-items: center;
   gap: var(--s-1);
-  padding: var(--s-1) var(--s-2);
-  border-radius: 999px;
   white-space: nowrap;
 }
 
@@ -71,6 +80,17 @@
    rather than broken. */
 .chip--pending { opacity: 0.45; }
 
+/* On very short landscape screens (phones held sideways are often under
+   400px tall) every row of HUD height is precious. Below that height, drop
+   the Treasury rate and the icons — the numbers alone are still readable and
+   the row is far more likely to fit on one line, which is the real fix for
+   wrapping rather than just making a wrapped state look tidier. */
+@media (max-height: 400px) {
+  .chip__rate { display: none; }
+  .chip__icon { display: none; }
+  .chip-group { gap: var(--s-1) var(--s-2); }
+}
+
 /* ---------------------------------------------------------------------------
  * CLOCK + SPEED (top-right)
  * ------------------------------------------------------------------------ */
@@ -79,6 +99,36 @@
   align-items: center;
   gap: var(--s-2);
   padding: var(--s-1) var(--s-2);
+}
+
+/* Only shown when src/main.js feature-detects the Fullscreen API (so it's
+   hidden on iOS Safari, which has none). Fullscreen must be requested from a
+   direct tap — browsers refuse it otherwise — which is why this exists as a
+   button rather than something that just happens automatically on load. */
+.fullscreen-btn {
+  position: relative;
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: var(--f-sm);
+  color: var(--c-text-dim);
+  background: var(--c-surface-3);
+  border: 1px solid var(--c-line);
+  border-radius: var(--r-sm);
+}
+
+.fullscreen-btn::after {
+  content: '';
+  position: absolute;
+  inset: calc((var(--tap) - 28px) / -2);
+}
+
+.fullscreen-btn[aria-pressed='true'] {
+  color: var(--c-bg);
+  background: var(--c-accent);
+  border-color: var(--c-accent);
 }
 
 .clock__date {

@@ -123,3 +123,36 @@ Template:
 - Possible polish: map pan/zoom, now that the map is full-bleed.
 - Still worth starting now: recruit the 12 Play Store testers (14-day clock).
 
+---
+
+## 2026-09-16 — Fullscreen + HUD chip fix
+
+**Built**
+- **Fullscreen toggle.** A button next to the clock requests the Fullscreen
+  API on tap (browsers refuse it without a direct gesture, so it can't just
+  happen on load). Feature-detected and hidden on browsers with no
+  Fullscreen API (iOS Safari). Also added `manifest.json` + a placeholder
+  `icon.svg` so "Add to Home Screen" launches with `display: fullscreen` —
+  the more permanent fix, since once installed the browser chrome never
+  comes back at all.
+- **Fixed the wobbly/overlapping HUD.** The four resource chips were each
+  their own independent floating pill. On a short landscape phone (reported:
+  address bar visible, ~360px tall) they didn't all fit on one line, and the
+  wrapped second row had nothing behind it — floating text sat directly on
+  top of the map, overlapping region labels. Fixed by grouping all four
+  chips inside one shared card, so any wrap happens inside a single
+  background instead of spilling loose pills onto the map. Also added a
+  `max-height: 400px` rule that drops the treasury rate and chip icons,
+  which keeps the row fitting on one line on most real short phones instead
+  of relying on the wrap-safety net at all.
+
+**Broke / learned**
+- Verified the group-containment fix by deliberately forcing a wrap down to
+  a 4-row stack (50px wide) in a headless test — every chip stayed inside
+  the card's bounds at every width tested, confirming the fix holds even in
+  worse cases than what was reported.
+
+**Next**
+- Phase 2, unchanged.
+- Still worth starting now: recruit the 12 Play Store testers (14-day clock).
+

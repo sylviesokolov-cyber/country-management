@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 192 192">
+  <!-- Simple placeholder mark: a shield (the "mandate") over the map's
+       accent colour. Swap this for real artwork whenever one exists — every
+       reference to it (manifest.json, index.html, this filename) stays the
+       same, so the swap is a single-file replacement. -->
+  <rect width="192" height="192" rx="36" fill="#0d1117"/>
+  <path d="M96 28 L154 50 V96 C154 132 130 156 96 168 C62 156 38 132 38 96 V50 Z"
+        fill="#58a6ff" stroke="#e6edf3" stroke-width="4"/>
+  <path d="M96 52 L96 144 M68 92 H124" stroke="#0d1117" stroke-width="8" stroke-linecap="round"/>
+</svg>

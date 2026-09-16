@@ -39,6 +39,7 @@
     Mandate.MapView.build(Util.el('map'), onRegionTap);
     Mandate.Hud.build(onSpeedChange);
     Mandate.Panel.build({ onAction: onRegionAction });
+    Mandate.Fullscreen.build();
     Mandate.Overlay.build({
       /* The overlay renders from live state, so it asks for it rather than
        * holding a stale reference. */

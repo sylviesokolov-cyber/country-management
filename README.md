@@ -61,9 +61,12 @@ npx http-server -p 8080 .    # then open http://localhost:8080
 **Hold the phone sideways** — the game is landscape only, and shows a rotate
 prompt in portrait.
 
-**Add it to your home screen** (Chrome → ⋮ → *Add to Home screen*) to play it
-full-screen without browser chrome. The meta tags for that are already in
-`index.html`.
+**Fill the screen** two ways:
+- Tap the small fullscreen icon next to the clock (uses the Fullscreen API —
+  hidden automatically on browsers that don't support it, like iOS Safari).
+- **Add it to your home screen** (Chrome → ⋮ → *Add to Home screen*) for the
+  more permanent fix: the browser chrome never comes back at all. This uses
+  `manifest.json`, already wired up in `index.html`.
 
 ---
 

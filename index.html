@@ -23,6 +23,9 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <title>Mandate</title>
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icon.svg">
 <link rel="stylesheet" href="styles/base.css">
 <link rel="stylesheet" href="styles/ui.css">
 </head>
@@ -58,31 +61,43 @@
        you can still tap a region that sits visually beneath the HUD. -->
   <div class="hud">
 
-    <!-- top-left: resource chips -->
-    <div class="hud-topleft chips">
-      <div class="chip glass chip--treasury">
+    <!-- top-left: resource chips.
+         All four live inside ONE glass card (.chip-group), not one pill each.
+         If the row runs out of width it wraps INSIDE that shared card, so a
+         wrapped second row still has a background behind it instead of
+         floating loose pills over the map — that floating-pill look was the
+         "wobbly" HUD bug on narrower landscape phones. -->
+    <div class="hud-topleft chip-group glass">
+      <div class="chip chip--treasury">
         <span class="chip__icon" aria-hidden="true">&#128176;</span>
         <span class="chip__value" id="hud-treasury">0</span>
         <span class="chip__rate" id="hud-treasury-rate">+0/d</span>
       </div>
       <!-- Shown but not simulated until Phase 2. Kept in the HUD from day one
            so the layout never has to change shape later. -->
-      <div class="chip glass chip--capital chip--pending">
+      <div class="chip chip--capital chip--pending">
         <span class="chip__icon" aria-hidden="true">&#127963;</span>
         <span class="chip__value" id="hud-capital">0</span>
       </div>
-      <div class="chip glass chip--manpower chip--pending">
+      <div class="chip chip--manpower chip--pending">
         <span class="chip__icon" aria-hidden="true">&#128101;</span>
         <span class="chip__value" id="hud-manpower">0</span>
       </div>
-      <div class="chip glass chip--stability">
+      <div class="chip chip--stability">
         <span class="chip__icon" aria-hidden="true">&#9878;</span>
         <span class="chip__value" id="hud-stability">0%</span>
       </div>
     </div>
 
-    <!-- top-right: date + speed -->
+    <!-- top-right: fullscreen toggle, date, speed -->
     <div class="hud-topright clock glass">
+      <!-- Browsers won't go fullscreen without a direct tap on something, so
+           this is a real button rather than an automatic call. Hidden by CSS
+           on browsers with no Fullscreen API (e.g. iOS Safari) — see
+           src/main.js, which feature-detects before showing it. -->
+      <button class="fullscreen-btn" id="btn-fullscreen" aria-label="Toggle fullscreen" hidden>
+        <span aria-hidden="true">&#10021;</span>
+      </button>
       <span class="clock__date" id="hud-date">1 Jan 2027</span>
       <!-- data-speed maps straight onto state.speed. -->
       <div class="speed" role="group" aria-label="Game speed">
@@ -174,6 +189,7 @@
 <script src="src/ui/hud.js"></script>
 <script src="src/ui/panel.js"></script>
 <script src="src/ui/overlay.js"></script>
+<script src="src/ui/fullscreen.js"></script>
 
 <script src="src/main.js"></script>
 </body>

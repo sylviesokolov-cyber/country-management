@@ -28,8 +28,13 @@ Tick items off as they land, and note anything deferred in `DEVLOG.md`.
 - [x] Core state object, plain and serialisable
 - [x] Fixed-timestep tick loop with capped catch-up
 - [x] Treasury accumulating from regional output
-- [x] Top HUD: resources, Mandate meter, in-game date, pause / 1× / 2×
-- [x] Bottom tab bar with placeholder sheets for the Phase 3–4 systems
+- [x] HUD: resource chips grouped in one card (never floats disconnected
+      pieces over the map even if it wraps on a short screen), vertical
+      Mandate gauge, in-game date, pause / 1× / 2×
+- [x] Fullscreen toggle (Fullscreen API) + web app manifest, so "Add to Home
+      Screen" launches with no browser chrome at all
+- [x] Full-screen management overlay with tabs (placeholders for Phase 3-4)
+- [x] Working region list, sorted worst-first, tap to jump to a region
 - [x] Version-tagged save/load in `localStorage` with autosave
 - [x] Pauses and saves when the tab is backgrounded
 
