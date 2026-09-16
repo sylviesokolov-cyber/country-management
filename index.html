@@ -68,20 +68,27 @@
          floating loose pills over the map — that floating-pill look was the
          "wobbly" HUD bug on narrower landscape phones. -->
     <div class="hud-topleft chip-group glass">
-      <div class="chip chip--treasury">
+      <!-- The Treasury rate is NET of upkeep, which is the only honest
+           version of it: gross income that quietly loses to the upkeep bill
+           would read as a healthy economy right up until the lights went out.
+           The chip turns red when the bill is about to go unpaid. -->
+      <div class="chip chip--treasury" id="hud-treasury-chip">
         <span class="chip__icon" aria-hidden="true">&#128176;</span>
         <span class="chip__value" id="hud-treasury">0</span>
         <span class="chip__rate" id="hud-treasury-rate">+0/d</span>
       </div>
-      <!-- Shown but not simulated until Phase 2. Kept in the HUD from day one
-           so the layout never has to change shape later. -->
-      <div class="chip chip--capital chip--pending">
+      <div class="chip chip--capital">
         <span class="chip__icon" aria-hidden="true">&#127963;</span>
         <span class="chip__value" id="hud-capital">0</span>
+        <span class="chip__rate" id="hud-capital-rate">+0/d</span>
       </div>
-      <div class="chip chip--manpower chip--pending">
+      <!-- Manpower shows its cap inline as "held/cap": unlike Treasury it
+           fills up and stops, so how much room is left is as useful as how
+           much there is. -->
+      <div class="chip chip--manpower">
         <span class="chip__icon" aria-hidden="true">&#128101;</span>
         <span class="chip__value" id="hud-manpower">0</span>
+        <span class="chip__rate" id="hud-manpower-rate">+0/d</span>
       </div>
       <div class="chip chip--stability">
         <span class="chip__icon" aria-hidden="true">&#9878;</span>
@@ -157,11 +164,16 @@
     <div class="overlay__body scrollable" id="overlay-body"></div>
   </section>
 
-  <!-- Phase 2 will show the run-over summary here. -->
+  <!-- ------------------------------------------------- RUN OVER (Phase 2) -->
+  <!-- Built once when the run ends (see src/main.js): the reason, what the
+       term amounted to, and the way back in. Phase 4 turns the figures into a
+       real score. -->
   <div class="veil" id="veil">
-    <div>
-      <div class="veil__title" id="veil-title">Run over</div>
+    <div class="veil__card">
+      <div class="veil__title" id="veil-title">Your term is over</div>
       <p class="veil__reason" id="veil-reason"></p>
+      <dl class="veil__stats" id="veil-stats"></dl>
+      <button class="veil__restart" id="veil-restart">Start a new run</button>
     </div>
   </div>
 </div>

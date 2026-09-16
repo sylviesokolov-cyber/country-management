@@ -97,6 +97,26 @@
           name.className = 'region-row__name';
           name.textContent = def.name;
 
+          /* A garrison is the thing you most need to remember you are paying
+           * for, so it gets a marker in the list as well as on the map. */
+          if (region.garrisoned) {
+            var garrison = document.createElement('span');
+            garrison.className = 'region-row__garrison';
+            garrison.setAttribute('aria-hidden', 'true');
+            garrison.textContent = '\u25cf';
+            name.appendChild(garrison);
+          }
+
+          /* The arrow is where the region is HEADED. Worst-first sorting
+           * answers "what is bad now"; the arrow answers "what is about to
+           * be", which is the question that actually costs you Mandate. */
+          var trend = document.createElement('span');
+          trend.className = 'region-row__trend';
+          trend.dataset.mood = region.stabilityTrend > 0.0005 ? 'up'
+            : region.stabilityTrend < -0.0005 ? 'down' : 'flat';
+          trend.textContent = region.stabilityTrend > 0.0005 ? '\u2191'
+            : region.stabilityTrend < -0.0005 ? '\u2193' : '\u2192';
+
           var nums = document.createElement('span');
           nums.className = 'region-row__nums';
           nums.textContent = Math.round(region.stability) + ' / ' +
@@ -104,9 +124,13 @@
 
           row.appendChild(swatch);
           row.appendChild(name);
+          row.appendChild(trend);
           row.appendChild(nums);
           row.setAttribute('aria-label',
-            def.name + ', ' + band.label + ', development ' + Math.round(region.development));
+            def.name + ', ' + band.label +
+            (region.garrisoned ? ', garrisoned' : '') +
+            ', settling at ' + Math.round(region.naturalStability) +
+            ', development ' + Math.round(region.development));
 
           /* Tapping a row selects that region and gets out of the way. */
           View.onTap(row, function () { handlers.onPickRegion(region.id); });
@@ -119,7 +143,9 @@
         var legend = document.createElement('p');
         legend.className = 'note';
         legend.innerHTML = 'Sorted worst first. Numbers are ' +
-          '<strong>stability / development</strong>. Tap a region to open it.';
+          '<strong>stability / development</strong>; the arrow is which way ' +
+          'stability is drifting. A dot marks a garrison. Tap a region to ' +
+          'open it.';
         bodyEl.appendChild(legend);
       },
     },

@@ -33,6 +33,11 @@ situation evolves).
 **The Mandate meter.** It starts full, decays every single day, and is spent by
 unpopular decisions. At zero, the run ends.
 
+Baseline decay alone sets the length of a term. It is **slowed** — never
+reversed, never refilled — by a country that is visibly doing well, so
+governing properly buys back some of the time it costs. Mandate is spent time,
+and no amount of good government gives a day back.
+
 Everything in the design serves this one idea: *every investment is a trade
 against a clock that is already draining*. The failure mode to design against
 is the idle-game spreadsheet — a state where the optimal play is to wait,
@@ -67,14 +72,25 @@ Deliberately non-overlapping: money cannot buy time, and political capital
 cannot build a road. The player is meant to be rich in one and starved in
 another at any given moment.
 
-*Phase 1 status: Treasury is simulated. The other two are displayed but static.*
+All three are simulated as of Phase 2. Two rules keep them from becoming a
+savings account:
+
+- **Treasury has a standing bill.** Every point of development costs upkeep
+  every day, as does every garrison. A bigger country is a more expensive one,
+  so growth never stops needing to be paid for. If the bill goes unpaid, the
+  unpaid *share* of it decays development and stability — austerity, and a
+  genuine death spiral rather than a plateau.
+- **Political Capital and Manpower are capped.** Goodwill is not a bank
+  account and soldiers are not savings; neither can be hoarded through a quiet
+  decade and cashed in at the end.
 
 ### 2.2 Regions (~16)
 
 Each region carries three live values:
 
 - **Stability** (0–100) — order, consent, security. Drives the map colour.
-- **Development** (0–100) — infrastructure and economy. The ceiling on output.
+- **Development** (0–100) — infrastructure and economy. The ceiling on output,
+  and the only permanent way to raise the region's natural stability.
 - **Output** — *derived*, never stored independently:
 
   ```
@@ -86,15 +102,47 @@ Each region carries three live values:
   is the economic spine of the game: development sets the ceiling, stability
   decides how much of it you collect.
 
-Neglected regions destabilise; unstable regions drain Mandate faster. Tapping a
-region opens a panel with actions (invest, garrison, build infrastructure).
-Region fill colour reflects the stability band at a glance — the player should
-read the health of the country without opening anything.
+#### Natural stability — the spine of the region simulation
+
+A region does not hold whatever stability you last pushed it to. It drifts
+toward a **natural level** set by what you have actually built there:
+
+```
+natural = base + development × perDevelopment
+                + garrison
+                - unrest in neighbouring regions
+                - austerity
+```
+
+`base` sits deliberately **below the unrest line**, so an undeveloped,
+ungarrisoned region doesn't merely stagnate — it settles into unrest and starts
+costing Mandate. Doing nothing has to lose ground.
+
+This is what makes the three region actions differ **in kind**, not in size:
+
+| Action | What it does | How long it lasts |
+|---|---|---|
+| **Public Works** | pushes stability *above* the natural level | washes back out |
+| **Garrison** | raises the natural level | only while you keep paying |
+| **Invest** | raises the natural level | permanently |
+
+So Public Works is a loan against the future, a garrison is rent, and
+development is the only thing you own. **Without this rule the winning
+strategy was to patch every region forever and build nothing** — see BALANCE.md
+for the run that proved it.
+
+Unstable regions drain Mandate faster, and each one drags its neighbours' natural
+level down, so a crisis left alone eats outward across the map. Tapping a region
+opens a panel with actions; the panel marks the natural level on the stability
+bar, because a player has to see where a region is *headed*, not just where it
+is. Region fill colour reflects the stability band at a glance — the player
+should read the health of the country without opening anything.
 
 Regions have a `terrain` tag (highland/agrarian/frontier/coastal/urban/
-industry) and a neighbour list. Both are currently flavour and adjacency data;
-they exist so that later systems (unrest spread, terrain modifiers, trade tech)
-have something to hook into without a data migration.
+industry) and a neighbour list. The neighbour list is live as of Phase 2 —
+it is what unrest spreads along. `terrain` is still flavour, waiting for the
+systems that will read it (terrain modifiers, trade tech), and exists now so
+those arrive without a data migration.
 
 ### 2.3 Tech / policy tree
 
@@ -155,7 +203,8 @@ does it (Rebel Inc., Plague Inc. and most mobile 4X games).
 
 ```
 ┌────────────────────────────────────────────────────────────┐
-│ [💰 250 +7.7/d] [🏛 20] [👥 12] [⚖ 49%]   [1 Jan 2027 ▮1×2×] │
+│ [💰 250 +2.9/d] [🏛 20 +0.02/d] [👥 12/26 +0.09/d] [⚖ 49%]    │
+│                                          [1 Jan 2027 ▮1×2×]  │
 │                                                    ┌────┐  │
 │                                                    │ 100│  │ ← vertical
 │              full-bleed SVG map (16 regions)       │ ▮▮ │   Mandate gauge
@@ -165,8 +214,12 @@ does it (Rebel Inc., Plague Inc. and most mobile 4X games).
 └────────────────────────────────────────────────────────────┘
 ```
 
-- **Top-left** — resource chips: Treasury (with its per-day rate), Political
-  Capital, Manpower, national Stability.
+- **Top-left** — resource chips, each with its per-day rate: Treasury,
+  Political Capital, Manpower (shown as *held/cap*) and national Stability.
+  The Treasury rate is **net of upkeep** — a gross figure would read as a
+  healthy economy right up until the lights went out — and the chip turns red
+  when the bill is about to go unpaid. On screens under 400px tall the rates
+  and icons drop so the row still fits on one line.
 - **Top-right** — in-game date and the pause / 1× / 2× controls.
 - **Right edge** — the Mandate gauge, a vertical bar that drains downward and
   shifts green → amber → red at the thresholds in `BALANCE.mandate`.
@@ -233,6 +286,12 @@ one branch in the sim. Follow that pattern for every system.
 `data/map-geometry.js` contains only `{ id, points, labelAt, neighbours }` and
 a viewBox. `data/regions.js` contains only gameplay facts, matched by `id`.
 Nothing in the geometry file knows the game exists.
+
+The one place the simulation reaches into it is the `neighbours` list, which
+unrest spreads along. `src/sim.js` reads it once into an adjacency index and
+**symmetrises it**: if a hand-drawn map ever lists r3 next to r4 but not r4
+next to r3, unrest would spread one way only — a bug nobody would think to look
+for in a geometry file.
 
 The current map is 16 procedurally generated placeholder polygons: a jittered
 6×3 lattice with two opposite corner cells dropped, which gives a
@@ -314,8 +373,9 @@ Full checklist in `TODO.md`. In short:
 
 1. **Phase 1 (done)** — landscape app shell with the floating HUD, SVG map,
    region panel, region list, state + tick loop, Treasury, speed controls.
-2. **Phase 2** — full three-resource economy, region stability/development
-   simulation with drift and neglect, Mandate decay pressure, game over.
+2. **Phase 2 (done)** — full three-resource economy with real sinks, natural
+   stability and drift, unrest spreading to neighbours, garrisons, austerity,
+   approval-slowed Mandate decay, and an end-of-term summary.
 3. **Phase 3** — tech/policy tree, appointee hiring and assignment.
 4. **Phase 4** — leader selection, random events, run summary and scoring.
 5. **Phase 5** — balance tuning, polish, save/load hardening.
@@ -325,6 +385,13 @@ Full checklist in `TODO.md`. In short:
 
 - Add balance values to `data/balance.js` **before** writing the logic that uses
   them.
+- Balance against the headless harness, and against **more than one play
+  style**. A single do-nothing run hides almost everything worth knowing; the
+  numbers that matter are the differences between a player who idles, one who
+  patches, and one who builds. BALANCE.md has the recipe.
+- An action that cannot change anything must not be sellable. `Sim.canAfford`
+  refuses actions whose every effect is already clamped out, so the player is
+  never charged for a no-op.
 - Keep `src/sim.js` free of DOM references, always.
 - New UI: build markup once on open, update values on render. Never rebuild
   markup per frame.

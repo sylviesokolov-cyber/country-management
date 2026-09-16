@@ -79,6 +79,14 @@
  * ------------------------------------------------------------------------ */
 *, *::before, *::after { box-sizing: border-box; }
 
+/* `hidden` must actually hide. The attribute's default is only
+   `display: none` at the very bottom of the cascade, so ANY component rule
+   that sets a display — `.action { display: flex }`, say — silently beats it
+   and the element stays on screen while every script correctly believes it is
+   hidden. That exact bug shipped Garrison and Withdraw Troops side by side in
+   the region panel. One rule here kills it everywhere. */
+[hidden] { display: none !important; }
+
 html, body {
   margin: 0;
   padding: 0;

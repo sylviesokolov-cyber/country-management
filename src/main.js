@@ -51,6 +51,8 @@
     Mandate.View.onTap(Util.el('btn-ministry'), function () { onOverlayOpen('tech'); });
     Mandate.View.onTap(Util.el('btn-regions'), function () { onOverlayOpen('regions'); });
 
+    Mandate.View.onTap(Util.el('veil-restart'), startNewRun);
+
     /* --- start the clock --- */
     loop = new Mandate.GameLoop({
       state: state,
@@ -131,16 +133,84 @@
   }
 
   /* ------------------------------------------------------------------------
-   * GAME OVER (Phase 2 turns this into a proper run summary)
+   * GAME OVER — the run summary.
+   *
+   * Built once, on the frame the run actually ends, rather than every frame:
+   * the veil is static from then on. Phase 4 turns these figures into a real
+   * score and keeps a best-per-leader table; for now they are the honest
+   * record of what one term amounted to.
    * ---------------------------------------------------------------------- */
   function renderGameOver(s) {
     var veil = Util.el('veil');
     if (!veil) return;
+
     var shouldShow = !!s.gameOver;
-    if (veil.classList.contains('is-open') !== shouldShow) {
-      veil.classList.toggle('is-open', shouldShow);
-      Util.el('veil-reason').textContent = s.gameOverReason || '';
-    }
+    if (veil.classList.contains('is-open') === shouldShow) return;
+
+    veil.classList.toggle('is-open', shouldShow);
+    if (!shouldShow) return;
+
+    Util.el('veil-reason').textContent = s.gameOverReason || '';
+    buildRunSummary(Util.el('veil-stats'), s);
+  }
+
+  function buildRunSummary(listEl, s) {
+    if (!listEl) return;
+    listEl.innerHTML = '';
+
+    var startDate = Mandate.BALANCE.time.startDate;
+    var years = (s.day / 365).toFixed(1);
+    var calm = s.day > 0
+      ? Math.round(((s.day - s.stats.daysInUnrest) / s.day) * 100)
+      : 100;
+
+    [
+      ['Days in office', Util.formatInt(s.day) + '  (' + years + ' years)'],
+      ['Left office', Util.formatDate(Util.dateFromDay(startDate, s.day))],
+      ['National stability', Math.round(s.derived.nationalStability) + '%'],
+      ['Development built',
+        Util.formatInt(s.derived.nationalDevelopment) + '  (from ' +
+        Util.formatInt(startingDevelopment()) + ')'],
+      ['Term without unrest', calm + '%'],
+      ['Decisions taken', Util.formatInt(s.stats.actionsTaken)],
+      ['Treasury raised', Util.formatInt(s.stats.treasuryEarned)],
+    ].forEach(function (pair) {
+      var dt = document.createElement('dt');
+      dt.textContent = pair[0];
+      var dd = document.createElement('dd');
+      dd.textContent = pair[1];
+      listEl.appendChild(dt);
+      listEl.appendChild(dd);
+    });
+  }
+
+  /** What the country was handed to you as, straight from the data file. */
+  function startingDevelopment() {
+    return Mandate.REGIONS.reduce(function (total, def) {
+      return total + def.development;
+    }, 0);
+  }
+
+  /**
+   * Throw the run away and start another. The loop holds its own reference to
+   * the state object, so it has to be handed the new one — otherwise the
+   * clock would keep ticking the dead world while the UI drew the new one.
+   */
+  function startNewRun() {
+    Mandate.State.clearSave();
+    state = Mandate.State.createNewGame();
+    Mandate.Sim.refresh(state);
+
+    loop.state = state;
+    loop.resetClock();
+
+    Mandate.Panel.close();
+    Mandate.Overlay.close();
+    /* The memo cache is keyed by element, not by run: without this the new
+     * game's identical-looking values would be skipped as "unchanged". */
+    Mandate.View.invalidate();
+
+    Mandate.State.save(state);
   }
 
   /* ------------------------------------------------------------------------

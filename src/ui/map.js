@@ -19,8 +19,11 @@
 
   /* id -> <path> element, so render() never has to search the DOM. */
   var regionNodes = Object.create(null);
+  /* id -> the garrison marker drawn over that region. */
+  var garrisonNodes = Object.create(null);
   /* id -> last band applied, so we only touch classList when it changes. */
   var lastBand = Object.create(null);
+  var lastGarrison = Object.create(null);
   var lastSelected = null;
 
   /**
@@ -71,6 +74,18 @@
       label.textContent = def.name;
       labels.appendChild(label);
 
+      /* A dot above the label marks a garrison. Drawn for every region and
+       * hidden by default, because a garrison comes and goes constantly —
+       * creating and destroying the node each time would mean touching the
+       * SVG on a tick rather than just flipping a class. */
+      var garrison = document.createElementNS(SVG_NS, 'circle');
+      garrison.setAttribute('cx', shape.labelAt.x);
+      garrison.setAttribute('cy', shape.labelAt.y - 13);
+      garrison.setAttribute('r', '4.5');
+      garrison.setAttribute('class', 'region-garrison');
+      labels.appendChild(garrison);
+      garrisonNodes[shape.id] = garrison;
+
       /* A small dot marks the capital. Flagged in data/regions.js. */
       if (def.capital) {
         var dot = document.createElementNS(SVG_NS, 'circle');
@@ -101,6 +116,12 @@
         if (lastBand[region.id]) node.classList.remove('region--' + lastBand[region.id]);
         node.classList.add('region--' + band);
         lastBand[region.id] = band;
+      }
+
+      var garrisoned = !!region.garrisoned;
+      if (lastGarrison[region.id] !== garrisoned) {
+        garrisonNodes[region.id].classList.toggle('is-on', garrisoned);
+        lastGarrison[region.id] = garrisoned;
       }
     }
 

@@ -25,7 +25,7 @@
    * renamed, removed). `migrate()` below then decides what to do with older
    * saves. Getting this in from day one is much cheaper than retrofitting it
    * after players have saves worth keeping. */
-  State.SCHEMA_VERSION = 1;
+  State.SCHEMA_VERSION = 2;
   State.SAVE_KEY = 'mandate:save';
 
   /**
@@ -44,7 +44,15 @@
          * save, and they can be re-balanced without invalidating saves. */
         stability: def.stability,
         development: def.development,
-        output: 0,          /* derived each tick, stored for display */
+        garrisoned: false,  /* a standing commitment, not a one-off action */
+
+        /* Derived every tick and stored only so the UI can read them without
+         * recomputing. Nothing in the sim reads them back. */
+        output: 0,
+        upkeep: 0,             /* Treasury this region costs per day */
+        naturalStability: 0,   /* the level it settles at if left alone */
+        stabilityTrend: 0,     /* stability change per day, before any action */
+
         actionsTaken: 0,
       };
     });
@@ -61,8 +69,8 @@
 
       resources: {
         treasury: B.resources.treasury.start,
-        politicalCapital: B.resources.politicalCapital.start,  /* PHASE 2 */
-        manpower: B.resources.manpower.start,                  /* PHASE 2 */
+        politicalCapital: B.resources.politicalCapital.start,
+        manpower: B.resources.manpower.start,
       },
       mandate: B.mandate.start,
 
@@ -72,15 +80,29 @@
        * can just read them instead of recalculating during render. */
       derived: {
         nationalOutput: 0,
-        treasuryPerDay: 0,
+        upkeepPerDay: 0,        /* what the country costs to keep standing */
+        treasuryPerDay: 0,      /* NET of upkeep — what the HUD chip shows */
+        treasuryGrossPerDay: 0, /* before upkeep, for the region panel */
+        politicalCapitalPerDay: 0,
+        manpowerPerDay: 0,
+        manpowerCap: 0,
         mandatePerDay: 0,
         nationalStability: 0,
+        nationalDevelopment: 0,
+        unstableRegions: 0,
+        /* True on any day the bill went unpaid. The UI turns the Treasury
+         * chip red on it, because austerity is the one state the player must
+         * never discover late. */
+        austerity: false,
       },
 
       /* Running totals — cheap now, and Phase 4's run summary will want them. */
       stats: {
         treasuryEarned: 0,
         actionsTaken: 0,
+        /* Days on which at least one region sat below the unrest line. The
+         * run summary reads this as "how much of your term was a crisis". */
+        daysInUnrest: 0,
       },
     };
   };
@@ -148,19 +170,37 @@
   /**
    * Bring an old save up to the current schema.
    *
-   * Right now there is only one version, so this just rejects anything it does
-   * not recognise. The pattern to follow as the game grows:
+   * A chain of small one-step upgrades, each turning version N into N+1, and
+   * anything the chain cannot reach is refused rather than half-loaded:
    *
    *   if (save.schemaVersion === 1) { ...add the fields v2 expects...
    *                                   save.schemaVersion = 2; }
    *   if (save.schemaVersion === 2) { ... }
    *
-   * i.e. a chain of small one-step upgrades, not one big branching function.
-   * Returning null means "start a new game instead" — always better than
-   * loading a half-broken world.
+   * Never one big branching function. Returning null means "start a new game
+   * instead" — always better than loading a half-broken world.
    */
   State.migrate = function (save) {
     if (!save || typeof save !== 'object') return null;
+
+    /* v1 -> v2 (Phase 2): regions gained a garrison flag and two display-only
+     * derived fields; the national derived block and stats gained entries.
+     * All of them are recomputed by Sim.refresh() on load, so the migration
+     * only has to make sure the fields EXIST — it never has to get them
+     * right. The garrison flag is the one real world fact here, and a v1 save
+     * predates garrisons entirely, so false is the truthful value. */
+    if (save.schemaVersion === 1) {
+      if (!Array.isArray(save.regions)) return null;
+      save.regions.forEach(function (region) {
+        region.garrisoned = false;
+        region.upkeep = 0;
+        region.naturalStability = 0;
+        region.stabilityTrend = 0;
+      });
+      save.stats = save.stats || {};
+      if (typeof save.stats.daysInUnrest !== 'number') save.stats.daysInUnrest = 0;
+      save.schemaVersion = 2;
+    }
 
     if (save.schemaVersion !== State.SCHEMA_VERSION) {
       console.warn(

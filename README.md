@@ -9,8 +9,11 @@ and a **Mandate** meter that drains from the day you take office. Everything
 you build costs mandate, time or both. When the mandate runs out, so does your
 government. A run lasts roughly 45–60 minutes.
 
-**Status: Phase 1 (playable skeleton).** See [TODO.md](TODO.md) for the plan
-and [DEVLOG.md](DEVLOG.md) for what happened when.
+**Status: Phase 2 (the full economy and the clock).** All three resources are
+simulated, regions drift toward a natural stability set by what you've built
+there, unrest spreads between neighbours, and a run now ends with a proper
+end-of-term summary. See [TODO.md](TODO.md) for the plan and
+[DEVLOG.md](DEVLOG.md) for what happened when.
 
 ---
 

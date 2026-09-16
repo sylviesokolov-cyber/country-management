@@ -17,9 +17,24 @@
     return Math.floor(value).toLocaleString('en-US');
   };
 
-  /** 1.234 -> "1.2" for per-day rates. */
+  /**
+   * Per-day rates, signed: 12.3 -> "+12", 1.234 -> "+1.2", 0.0281 -> "+0.03".
+   *
+   * The precision has to adapt, because the three resources move at wildly
+   * different speeds: Treasury changes by whole points a day while Political
+   * Capital changes by hundredths. A fixed one decimal place would render the
+   * Political Capital rate as a permanent "+0.0", which reads as "this
+   * resource is broken" rather than "this resource is slow".
+   *
+   * A value that rounds to zero is shown unsigned, so a rate of -0.001 never
+   * displays as the nonsense "-0.00".
+   */
   Util.formatRate = function (value) {
-    return (value >= 0 ? '+' : '') + value.toFixed(1);
+    var abs = Math.abs(value);
+    var decimals = abs >= 10 ? 0 : abs >= 1 ? 1 : 2;
+    var text = value.toFixed(decimals);
+    if (parseFloat(text) === 0) return (0).toFixed(decimals);
+    return (value > 0 ? '+' : '') + text;
   };
 
   /**

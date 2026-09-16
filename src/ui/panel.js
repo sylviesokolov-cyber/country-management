@@ -23,6 +23,7 @@
   var panelEl, bodyEl, nameEl, terrainEl;
   var onAction = function () {};
   var statNodes = {};
+  var garrisonNote = null;
 
   Panel.build = function (handlers) {
     panelEl = Util.el('region-panel');
@@ -54,10 +55,32 @@
 
     var grid = document.createElement('div');
     grid.className = 'stat-grid';
-    grid.appendChild(buildStat('stability', 'Stability', true));
-    grid.appendChild(buildStat('development', 'Development', true));
-    grid.appendChild(buildStat('output', 'Output', false));
+    /* Stability is the only stat with a marker and a trend, because it is the
+     * only one that moves on its own. The marker is where the region SETTLES;
+     * the number is where it is today. The gap between them is the whole
+     * decision the panel exists to support. */
+    grid.appendChild(buildStat('stability', 'Stability',
+      { bar: true, marker: true, trend: true, wide: true }));
+    grid.appendChild(buildStat('development', 'Development', { bar: true }));
+    grid.appendChild(buildStat('output', 'Output', {}));
+    grid.appendChild(buildStat('upkeep', 'Upkeep', {}));
     bodyEl.appendChild(grid);
+
+    /* Shown only while troops are stationed here — see Panel.render. The
+     * daily cost is read from balance rather than written into the text, so
+     * retuning the garrison can never leave the panel quoting an old price.
+     * (The Upkeep row above already includes it; this says what it buys.) */
+    garrisonNote = document.createElement('div');
+    garrisonNote.className = 'garrison-note';
+    garrisonNote.appendChild(iconSpan('\u2696'));
+    var garrisonText = document.createElement('span');
+    garrisonText.textContent = 'Garrisoned: +' +
+      Mandate.BALANCE.region.naturalStability.garrisonBonus +
+      ' stability for ' +
+      Mandate.BALANCE.region.garrison.treasuryUpkeepPerDay + ' ¤/day, ' +
+      'for as long as you keep paying it.';
+    garrisonNote.appendChild(garrisonText);
+    bodyEl.appendChild(garrisonNote);
 
     /* --- action buttons, generated from the balance data --- */
     var actions = document.createElement('div');
@@ -67,13 +90,6 @@
       actions.appendChild(buildAction(actionId));
     });
     bodyEl.appendChild(actions);
-
-    var note = document.createElement('div');
-    note.className = 'note';
-    note.innerHTML = '<strong>Phase 1.</strong> Regions do not drift on their ' +
-      'own yet, and Capital and Manpower are not simulated. Phase 2 adds ' +
-      'region simulation, the full economy and the game-over rule.';
-    bodyEl.appendChild(note);
 
     View.invalidate();   /* the markup is new; forget memoised values */
     View.setOpen(panelEl, true);
@@ -98,26 +114,59 @@
 
     setStat('stability', region.stability.toFixed(0), (region.stability / max) * 100);
     setStat('development', region.development.toFixed(0), (region.development / max) * 100);
-    setStat('output', region.output.toFixed(2), null);
+    setStat('output', region.output.toFixed(2) + '/d', null);
+    setStat('upkeep', '−' + region.upkeep.toFixed(2) + '/d', null);
 
-    /* Re-check affordability every frame: treasury is ticking up, so buttons
-     * un-grey themselves the moment the player can afford them. */
+    /* The bar takes the region's band colour, the same one the map and the
+     * region list use. A fixed green bar would have shown a region in crisis
+     * as healthy — the panel has to tell the same story the map does. */
+    setBandColour('stability', Mandate.Sim.stabilityBand(region).id);
+
+    /* Where the region is headed, and how fast. Both come straight from the
+     * sim so the panel can never disagree with what the tick will do. */
+    setMarker('stability', (region.naturalStability / max) * 100);
+    setTrend('stability', region.stabilityTrend, region.naturalStability);
+
+    if (garrisonNote) garrisonNote.hidden = !region.garrisoned;
+
+    /* Re-check every frame: Treasury is ticking up and stability is drifting,
+     * so buttons un-grey themselves the moment they become legal. Garrison
+     * and Withdraw swap places rather than sitting next to each other greyed
+     * out, so the panel always offers the one move that makes sense. */
     var buttons = bodyEl.querySelectorAll('.action');
     for (var i = 0; i < buttons.length; i++) {
       var btn = buttons[i];
-      var check = Mandate.Sim.canAfford(state, btn.dataset.actionId);
+      var action = Mandate.BALANCE.actions[btn.dataset.actionId];
+      var requiresGarrison = action.requires && typeof action.requires.garrisoned === 'boolean';
+      var hidden = requiresGarrison && !!region.garrisoned !== action.requires.garrisoned;
+      if (btn.hidden !== hidden) btn.hidden = hidden;
+      if (hidden) continue;
+
+      var check = Mandate.Sim.canAfford(state, btn.dataset.actionId, region.id);
       var disabled = !check.ok;
       if (btn.disabled !== disabled) btn.disabled = disabled;
-      var reasonEl = btn.querySelector('.action__reason');
-      View.setText(reasonEl, check.ok ? '' : check.reason);
+      View.setText(btn.querySelector('.action__reason'), check.ok ? '' : check.reason);
     }
   };
 
   /* --- small markup helpers ------------------------------------------- */
 
-  function buildStat(key, label, withBar) {
+  function iconSpan(char) {
+    var el = document.createElement('span');
+    el.className = 'garrison-note__icon';
+    el.setAttribute('aria-hidden', 'true');
+    el.textContent = char;
+    return el;
+  }
+
+  function buildStat(key, label, opts) {
     var wrap = document.createElement('div');
-    wrap.className = 'stat';
+    /* A wide stat spans the whole grid row: room for a bar, a marker and a
+     * trend line without squeezing them into a third of the panel. */
+    wrap.className = 'stat' + (opts.wide ? ' stat--wide' : '');
+
+    var head = document.createElement('div');
+    head.className = 'stat__head';
 
     var labelEl = document.createElement('div');
     labelEl.className = 'stat__label';
@@ -126,20 +175,34 @@
     var valueEl = document.createElement('div');
     valueEl.className = 'stat__value';
 
-    wrap.appendChild(labelEl);
-    wrap.appendChild(valueEl);
+    head.appendChild(labelEl);
+    head.appendChild(valueEl);
+    wrap.appendChild(head);
 
     var fillEl = null;
-    if (withBar) {
+    var markerEl = null;
+    if (opts.bar) {
       var bar = document.createElement('div');
       bar.className = 'bar';
       fillEl = document.createElement('div');
       fillEl.className = 'bar__fill bar__fill--' + key;
       bar.appendChild(fillEl);
+      if (opts.marker) {
+        markerEl = document.createElement('div');
+        markerEl.className = 'bar__marker';
+        bar.appendChild(markerEl);
+      }
       wrap.appendChild(bar);
     }
 
-    statNodes[key] = { value: valueEl, fill: fillEl };
+    var trendEl = null;
+    if (opts.trend) {
+      trendEl = document.createElement('div');
+      trendEl.className = 'stat__trend';
+      wrap.appendChild(trendEl);
+    }
+
+    statNodes[key] = { value: valueEl, fill: fillEl, marker: markerEl, trend: trendEl };
     return wrap;
   }
 
@@ -151,6 +214,40 @@
       var width = pct.toFixed(1) + '%';
       if (node.fill.style.width !== width) node.fill.style.width = width;
     }
+  }
+
+  /** Recolour a bar to a stability band. */
+  function setBandColour(key, bandId) {
+    var node = statNodes[key];
+    if (!node || !node.fill || node.fill.dataset.band === bandId) return;
+    node.fill.dataset.band = bandId;
+    node.fill.style.background = 'var(--c-band-' + bandId + ')';
+  }
+
+  /** Position the "settles here" tick on a bar. */
+  function setMarker(key, pct) {
+    var node = statNodes[key];
+    if (!node || !node.marker) return;
+    var left = pct.toFixed(1) + '%';
+    if (node.marker.style.left !== left) node.marker.style.left = left;
+  }
+
+  /**
+   * "↓ 0.02/day · settles at 31" — where the region is going, and where it
+   * stops. Rounded to a whole number because the player is choosing between
+   * regions, not auditing the simulation.
+   */
+  function setTrend(key, perDay, settlesAt) {
+    var node = statNodes[key];
+    if (!node || !node.trend) return;
+
+    var arrow = perDay > 0.0005 ? '\u2191' : perDay < -0.0005 ? '\u2193' : '\u2192';
+    var text = arrow + ' ' + Math.abs(perDay).toFixed(2) + '/day \u00b7 settles at ' +
+      Math.round(settlesAt);
+    if (node.trend.textContent !== text) node.trend.textContent = text;
+
+    var mood = perDay > 0.0005 ? 'up' : perDay < -0.0005 ? 'down' : 'flat';
+    if (node.trend.dataset.mood !== mood) node.trend.dataset.mood = mood;
   }
 
   function buildAction(actionId) {
@@ -169,7 +266,7 @@
 
     var cost = document.createElement('div');
     cost.className = 'action__cost';
-    cost.textContent = formatCost(action.cost);
+    cost.textContent = formatCost(action.cost, action.refund);
 
     var reason = document.createElement('small');
     reason.className = 'action__reason';
@@ -191,10 +288,21 @@
     return btn;
   }
 
-  function formatCost(cost) {
-    return Object.keys(cost).map(function (key) {
+  /**
+   * "60 ¤ + 6 mp", or "+3 mp" for an action that gives rather than takes.
+   * An action with neither (nothing in the game yet, but the data allows it)
+   * reads as "free" rather than as an empty gap.
+   */
+  function formatCost(cost, refund) {
+    var parts = Object.keys(cost || {}).map(function (key) {
       return Util.formatInt(cost[key]) + ' ' + shortLabel(key);
-    }).join(' + ');
+    });
+    if (parts.length) return parts.join(' + ');
+
+    var refunds = Object.keys(refund || {}).map(function (key) {
+      return '+' + Util.formatInt(refund[key]) + ' ' + shortLabel(key);
+    });
+    return refunds.length ? refunds.join(' + ') : 'free';
   }
 
   function shortLabel(key) {

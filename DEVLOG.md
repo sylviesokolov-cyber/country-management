@@ -157,3 +157,71 @@ Template:
 - Phase 2, unchanged.
 - Still worth starting now: recruit the 12 Play Store testers (14-day clock).
 
+
+## 2026-09-16 — Phase 2: the economy, the drift and the clock
+
+**Built**
+- **All three resources are live.** Political Capital accrues from national
+  stability above a pivot (and stops entirely below it — the leader in trouble
+  is the one who can't buy their way out). Manpower is recruited from
+  development × stability. Both are **capped**: goodwill is not a bank account.
+- **Treasury finally has a sink.** Every point of development bills upkeep
+  every day, as does every garrison, so a bigger country is a more expensive
+  one. When the bill can't be paid, the unpaid *share* of it decays development
+  and stability — that's the "development decays without upkeep" rule, and it
+  makes bankruptcy a death spiral rather than a plateau. The HUD's Treasury
+  rate is net of upkeep and the chip turns red before the bill bounces.
+- **Natural stability.** Regions drift toward a level set by development,
+  garrison, neighbouring unrest and austerity, closing a fixed share of the gap
+  per day. `base` sits below the unrest line, so neglect actively loses ground.
+- **Garrison + Withdraw Troops**, and a new **Emergency Relief** action (costs
+  Political Capital, usable only below the unrest line) so PC has a sink before
+  the tech tree exists. Garrisons show as a dot on the map and in the region
+  list.
+- **Region panel rebuilt** around the new model: a full-width stability row
+  with a marker showing where the region *settles*, a trend readout, and
+  Output/Upkeep. The stability bar now takes the region's band colour, so a
+  region in unrest no longer shows a green bar. The Phase 1 note is gone.
+- **Real end-of-term screen**: reason, seven-line run summary, and a restart
+  that hands the loop the new state object.
+- Schema **v2** with a v1→v2 migration; `Util.formatRate` now adapts its
+  precision (PC moves in hundredths and was rendering as a permanent "+0.0").
+
+**Broke / learned**
+- **A single do-nothing balance run tells you almost nothing.** Two of the
+  three structural problems below were invisible except as *differences between
+  play styles*. Tuning against four scripted styles is the only reason this
+  phase landed. BALANCE.md now says so in the balance-pass recipe.
+- **The flat stability drift the plan called for made "build nothing" the
+  winning strategy** — 117 minutes, 30,000 Treasury hoarded, country unchanged.
+  Public Works costs no Mandate and its +8 never decayed, so patching 16
+  regions forever beat governing. Replacing it with the natural-level model is
+  what fixed it. The old `stabilityDriftPerDay` / `developmentSupportPerPoint`
+  knobs are gone.
+- **Then the clock punished developing anyway**: investing cost Mandate and
+  bought nothing a treadmill didn't already give, so the build-everything style
+  died 17 minutes *earlier*. Fixed by letting a well-governed country slow the
+  baseline decay (never reverse it) — which also answers BALANCE.md's standing
+  "is Mandate recoverable?" question: only ever slowed.
+- **Invest on a maxed-out region charged full price and did nothing.** The
+  effect clamped out silently. `Sim.canAfford` now refuses any action whose
+  every effect is already clamped.
+- **Unrest spread in region-list order.** Drift was computed and applied in one
+  pass, so r1's slide reached r2 that same day but never the reverse. All
+  trends are now computed against one snapshot, then applied.
+- **`btn.hidden = true` doesn't hide anything if a CSS rule sets a display.**
+  Garrison and Withdraw Troops shipped side by side in the panel while every
+  script correctly believed one was hidden; only a screenshot caught it. Added
+  `[hidden] { display: none !important; }` to the reset, and the UI test now
+  asserts on `getClientRects()` rather than the attribute.
+- **A flex item with `min-width: 0` and no `overflow` paints outside its box.**
+  Region names were being squeezed to 22px and rendering straight over the
+  trend arrow and the numbers. Widened the list columns to 190px and clipped
+  the name.
+
+**Next**
+- Phase 3: `data/tech.js`, the research queue, and the tech tree UI. Political
+  Capital income was set blind — re-tune it once real node prices exist.
+- Worth committing in Phase 5: the headless harness used here was a scratch
+  file. Multi-style runs earned their keep and shouldn't be rewritten each time.
+- Still worth starting now: recruit the 12 Play Store testers (14-day clock).

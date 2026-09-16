@@ -76,9 +76,12 @@
 .chip--manpower  .chip__value { color: var(--c-manpower); }
 .chip--stability .chip__value { color: var(--c-band-stable); }
 
-/* Resources that exist in the HUD but aren't simulated yet read as inactive
-   rather than broken. */
-.chip--pending { opacity: 0.45; }
+/* Austerity: the upkeep bill is about to go unpaid. It turns the Treasury
+   chip red because it is the one state the player must not discover late —
+   an unpaid country loses development AND stability at the same time, and
+   both are far more expensive to buy back than to avoid. */
+.chip--austerity .chip__value,
+.chip--austerity .chip__rate { color: var(--c-danger); }
 
 /* On very short landscape screens (phones held sideways are often under
    400px tall) every row of HUD height is precious. Below that height, drop
@@ -327,6 +330,19 @@
   pointer-events: none;
 }
 
+/* Garrison marker, drawn above the region label. The node exists for every
+   region from the start and is only ever shown or hidden, so stationing
+   troops costs a class toggle rather than SVG surgery on a tick. */
+.region-garrison {
+  fill: var(--c-manpower);
+  stroke: rgba(0, 0, 0, 0.7);
+  stroke-width: 1.5px;
+  pointer-events: none;
+  display: none;
+}
+
+.region-garrison.is-on { display: block; }
+
 /* ---------------------------------------------------------------------------
  * REGION PANEL — slides in from the right edge.
  * In landscape a side panel is the right shape: it leaves most of the country
@@ -428,7 +444,38 @@
   font-variant-numeric: tabular-nums;
 }
 
+/* Stability is the stat the whole panel is about, so it gets the full width
+   of the grid: a taller bar, the "settles here" marker and a trend line all
+   need room that a one-third column can't give them. */
+.stat--wide {
+  grid-column: 1 / -1;
+  text-align: left;
+  padding: var(--s-2);
+}
+
+.stat--wide .stat__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--s-2);
+}
+
+/* Which way the region is drifting, and where it stops. Colour carries the
+   same meaning as the arrow glyph rather than replacing it, so the readout
+   still works without colour vision. */
+.stat__trend {
+  margin-top: var(--s-1);
+  font-family: var(--font-num);
+  font-size: var(--f-xs);
+  font-variant-numeric: tabular-nums;
+  color: var(--c-text-dim);
+}
+
+.stat__trend[data-mood="down"] { color: var(--c-band-unrest); }
+.stat__trend[data-mood="up"]   { color: var(--c-band-secure); }
+
 .bar {
+  position: relative;
   height: 4px;
   margin-top: var(--s-1);
   background: var(--c-surface-3);
@@ -436,9 +483,42 @@
   overflow: hidden;
 }
 
+.stat--wide .bar { height: 8px; }
+
 .bar__fill { height: 100%; background: var(--c-accent); transition: width 300ms linear; }
 .bar__fill--stability { background: var(--c-band-stable); }
 .bar__fill--development { background: var(--c-accent); }
+
+/* The level the region SETTLES at, marked on the bar it will drift toward.
+   Nudged half its own width to the left so the line sits ON the value rather
+   than just after it. */
+.bar__marker {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  margin-left: -1px;
+  background: var(--c-text);
+  opacity: 0.85;
+  transition: left 300ms linear;
+}
+
+/* Shown in the region panel only while troops are stationed there. */
+.garrison-note {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  margin-bottom: var(--s-3);
+  padding: var(--s-2);
+  font-size: var(--f-xs);
+  line-height: 1.3;
+  color: var(--c-text-dim);
+  background: var(--c-surface-2);
+  border: 1px solid var(--c-manpower);
+  border-radius: var(--r-sm);
+}
+
+.garrison-note__icon { color: var(--c-manpower); flex: 0 0 auto; }
 
 /* --- action buttons --- */
 .actions { display: flex; flex-direction: column; gap: var(--s-2); }
@@ -577,9 +657,13 @@
 .overlay__body h3 { margin: 0 0 var(--s-2); font-size: var(--f-md); color: var(--c-text); }
 
 /* --- region list (the Regions button) --- */
+/* 190px, not 150: a row has to fit a region name, a trend arrow and the
+   stability/development pair side by side. At 150px the flex row squeezed the
+   name below its own text width and — with nothing clipping it — the name
+   painted straight over the arrow and the numbers. */
 .region-list {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
   gap: var(--s-2);
 }
 
@@ -607,9 +691,44 @@
   background: var(--region-fill, var(--c-band-strained));
 }
 
-.region-row__name { font-size: var(--f-xs); color: var(--c-text); flex: 1 1 auto; min-width: 0; }
+/* `min-width: 0` lets this shrink below its content so the numbers always
+   fit; `overflow: hidden` is the other half of that bargain, so a name that
+   has been shrunk is clipped rather than painted over its neighbours. */
+.region-row__name {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  overflow-wrap: break-word;
+  font-size: var(--f-xs);
+  color: var(--c-text);
+}
+
+/* Same dot, same colour as the garrison marker on the map. */
+.region-row__garrison {
+  margin-left: var(--s-1);
+  font-size: 8px;
+  color: var(--c-manpower);
+  vertical-align: middle;
+}
+
+.region-row__trend {
+  flex: 0 0 auto;
+  margin: 0 var(--s-2);
+  font-size: var(--f-xs);
+  color: var(--c-text-dim);
+}
+
+.region-row__trend[data-mood="down"] { color: var(--c-band-unrest); }
+.region-row__trend[data-mood="up"]   { color: var(--c-band-secure); }
 
 .region-row__nums {
+  flex: 0 0 auto;
+  /* Fixed width and no wrapping: the pair is one value, so "31 / 6" must
+     never break across two lines, and the columns should line up down the
+     list rather than jittering with the length of each region's name. */
+  min-width: 4em;
+  text-align: right;
+  white-space: nowrap;
   font-family: var(--font-num);
   font-size: var(--f-xs);
   color: var(--c-text-faint);
@@ -617,7 +736,10 @@
 }
 
 /* ---------------------------------------------------------------------------
- * GAME OVER veil (Phase 2 fills this in; the hook exists now)
+ * RUN OVER — the end-of-term summary.
+ * Scrolls internally like every other panel: in landscape there is no
+ * guarantee the whole summary fits, and a summary you cannot reach the bottom
+ * of is worse than no summary.
  * ------------------------------------------------------------------------ */
 .veil {
   position: absolute;
@@ -627,10 +749,65 @@
   align-items: center;
   justify-content: center;
   text-align: center;
-  padding: var(--s-5);
-  background: rgba(8, 11, 16, 0.9);
+  padding: var(--s-4);
+  background: rgba(8, 11, 16, 0.92);
 }
 
 .veil.is-open { display: flex; }
-.veil__title { font-size: var(--f-xl); font-weight: 700; }
-.veil__reason { color: var(--c-text-dim); font-size: var(--f-sm); }
+
+.veil__card {
+  width: min(460px, 100%);
+  max-height: 100%;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  padding: var(--s-4);
+  background: var(--c-surface);
+  border: 1px solid var(--c-line);
+  border-radius: var(--r-lg);
+}
+
+.veil__title { font-size: var(--f-lg); font-weight: 700; }
+
+.veil__reason {
+  margin: var(--s-2) 0 var(--s-4);
+  color: var(--c-text-dim);
+  font-size: var(--f-sm);
+  line-height: 1.35;
+}
+
+/* A two-column definition list: label left, figure right, one row each. */
+.veil__stats {
+  display: grid;
+  grid-template-columns: auto auto;
+  gap: var(--s-1) var(--s-3);
+  margin: 0 0 var(--s-4);
+  text-align: left;
+}
+
+.veil__stats dt {
+  font-size: var(--f-xs);
+  color: var(--c-text-dim);
+}
+
+.veil__stats dd {
+  margin: 0;
+  font-family: var(--font-num);
+  font-size: var(--f-xs);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.veil__restart {
+  width: 100%;
+  min-height: var(--tap);
+  padding: var(--s-2) var(--s-4);
+  font-size: var(--f-sm);
+  font-weight: 600;
+  color: var(--c-bg);
+  background: var(--c-accent);
+  border: 0;
+  border-radius: var(--r-md);
+}
+
+.veil__restart:active { filter: brightness(0.9); }

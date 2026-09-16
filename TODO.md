@@ -40,26 +40,34 @@ Tick items off as they land, and note anything deferred in `DEVLOG.md`.
 
 ---
 
-## Phase 2 — The economy and the clock
+## Phase 2 — The economy and the clock ✅ *(complete)*
 
-- [ ] **Political Capital**: earned from national stability and governance;
-      spent on tech, policies, emergency actions
-- [ ] **Manpower**: derived from development/population; spent on garrisons,
-      projects and appointee slots
-- [ ] Ongoing **sinks** so Treasury can't just pile up (upkeep on developed
-      regions, project maintenance)
-- [ ] Region **stability drift**: neglected regions slide toward unrest,
-      garrisoned/attended ones recover
-      *(balance knobs `stabilityDriftPerDay` / `developmentDecayPerDay` already
-      exist, currently 0)*
-- [ ] Neighbour effects: unrest bleeds into adjacent regions (`neighbours` is
-      already in the geometry data)
-- [ ] Development decay without upkeep
-- [ ] Unlock the **Garrison** action (costs Manpower and Mandate)
-- [ ] Mandate decay driven by unstable regions, not just baseline
-- [ ] **Game over** at Mandate 0: proper screen, not just the veil hook
-- [ ] Balance the first full loop to roughly a 45–60 minute run
-- [ ] Remove the "Phase 1" note from the region panel
+- [x] **Political Capital**: earned from national stability above a pivot,
+      capped so goodwill can't be banked; spends on Emergency Relief today,
+      on tech and policies from Phase 3
+- [x] **Manpower**: recruited from development × stability, capped by national
+      development; spent raising garrisons
+- [x] Ongoing **sinks** so Treasury can't just pile up: per-day upkeep on every
+      point of development, plus garrison upkeep
+- [x] **Austerity**: an upkeep bill the Treasury can't cover decays development
+      and stability in proportion to the unpaid share — the "development decay
+      without upkeep" rule, and a real death spiral
+- [x] Region **stability drift** toward a **natural level** set by development,
+      garrison, neighbours and austerity
+      *(this replaced the `stabilityDriftPerDay` / `developmentSupportPerPoint`
+      knobs the plan assumed — see BALANCE.md for why a flat daily slide made
+      "stabilise once, then idle" the winning strategy)*
+- [x] Neighbour effects: each neighbour in unrest lowers a region's natural
+      level, so a crisis eats outward across the map
+- [x] Unlock the **Garrison** action (Treasury + Manpower + Mandate to raise,
+      Treasury every day to keep) and **Withdraw Troops** to stand it down
+- [x] New **Emergency Relief** action, so Political Capital has a sink before
+      the tech tree exists
+- [x] Mandate decay driven by unstable regions, not just baseline — and
+      *slowed* by a genuinely well-governed country, never refilled
+- [x] **Game over** at Mandate 0: a real end-of-term summary with a restart
+- [x] Balance the first full loop to roughly a 45–60 minute run
+- [x] Remove the "Phase 1" note from the region panel
 
 ---
 

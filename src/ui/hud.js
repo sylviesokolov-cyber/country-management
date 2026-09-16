@@ -18,13 +18,17 @@
   var els = {};
   var speedButtons = [];
   var lastHealth = null;
+  var lastAusterity = null;
 
   Hud.build = function (onSpeedChange) {
     els = {
+      treasuryChip: Util.el('hud-treasury-chip'),
       treasury: Util.el('hud-treasury'),
       treasuryRate: Util.el('hud-treasury-rate'),
       capital: Util.el('hud-capital'),
+      capitalRate: Util.el('hud-capital-rate'),
       manpower: Util.el('hud-manpower'),
+      manpowerRate: Util.el('hud-manpower-rate'),
       stability: Util.el('hud-stability'),
       mandate: Util.el('hud-mandate'),
       mandateFill: Util.el('hud-mandate-fill'),
@@ -45,11 +49,29 @@
 
     View.setText(els.treasury, Util.formatInt(state.resources.treasury));
     /* The rate answers "and where is this heading?" — a strategy HUD should
-     * always show the trend, not just the total. */
+     * always show the trend, not just the total. It is NET of the upkeep
+     * bill, so a country quietly spending more than it earns reads as
+     * negative here rather than looking healthy until it collapses. */
     View.setText(els.treasuryRate, Util.formatRate(state.derived.treasuryPerDay) + '/d');
 
+    /* Austerity — the bill is about to go unpaid — turns the chip red. It is
+     * the one state the player must never find out about late, because it
+     * eats development and stability at the same time. */
+    if (els.treasuryChip && lastAusterity !== state.derived.austerity) {
+      els.treasuryChip.classList.toggle('chip--austerity', state.derived.austerity);
+      lastAusterity = state.derived.austerity;
+    }
+
     View.setText(els.capital, Util.formatInt(state.resources.politicalCapital));
-    View.setText(els.manpower, Util.formatInt(state.resources.manpower));
+    View.setText(els.capitalRate,
+      Util.formatRate(state.derived.politicalCapitalPerDay) + '/d');
+
+    /* "held/cap" — Manpower fills up and stops, so the headroom matters as
+     * much as the total. */
+    View.setText(els.manpower, Util.formatInt(state.resources.manpower) +
+      '/' + Util.formatInt(state.derived.manpowerCap));
+    View.setText(els.manpowerRate, Util.formatRate(state.derived.manpowerPerDay) + '/d');
+
     View.setText(els.stability, Math.round(state.derived.nationalStability) + '%');
 
     /* The gauge drains downward, so it is the fill's HEIGHT that tracks the

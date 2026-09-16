@@ -16,10 +16,21 @@
 (function (Mandate) {
   'use strict';
 
+  /* The unrest line, in one place. It is both the threshold the Mandate
+   * pressure rule uses and the condition on the emergency-relief action, and
+   * those two must never drift apart — a player who sees a region cross the
+   * line should get the crisis tool at exactly that moment. */
+  var UNSTABLE_BELOW = 35;
+
   Mandate.BALANCE = {
     /* Bumped when the meaning of these numbers changes enough that old saves
      * would be balanced differently. Recorded into saves for debugging. */
-    balanceVersion: 1,
+    balanceVersion: 2,
+
+    /* Actions carry the phase that made them real. Anything above this number
+     * is authored-but-not-live, so future phases can land their data before
+     * their logic without the buttons going live early. */
+    implementedPhase: 2,
 
     time: {
       /* Real milliseconds per simulated day, per speed setting.
@@ -35,21 +46,70 @@
 
     resources: {
       treasury: { start: 250 },
-      /* PHASE 2: these two are displayed but not yet simulated. */
-      politicalCapital: { start: 20 },
-      manpower: { start: 12 },
+
+      /* POLITICAL CAPITAL — the currency of consent.
+       * Earned purely from how well the country is governed: national
+       * stability above the pivot pays in, below it pays nothing. A leader
+       * presiding over unrest has no political capital to spend, which is
+       * exactly when they most want it. Capped, because goodwill is not a
+       * bank account — you cannot bank a decade of calm and cash it in at the
+       * end of the term. */
+      politicalCapital: {
+        start: 20,
+        perDayBase: 0.02,
+        pivotStability: 50,
+        perStabilityPointPerDay: 0.002,
+        max: 100,
+      },
+
+      /* MANPOWER — the people you can call on.
+       * Comes from the population and development of regions you actually
+       * hold: an unstable region recruits badly, so the same stability that
+       * pays the Treasury also fills the barracks. Capped by national
+       * development for the same reason Political Capital is capped. */
+      manpower: {
+        start: 12,
+        perRegionPerDay: 0.002,
+        perDevelopmentPerDay: 0.0004,
+        capBase: 10,
+        capPerDevelopment: 0.06,
+      },
     },
 
     mandate: {
       start: 100,
       max: 100,
       /* Baseline drift: the honeymoon always ends. This is the "draining clock"
-       * that makes every spending decision a tradeoff. */
-      decayPerDay: 0.02,
-      /* PHASE 2: unstable regions add to the decay, and hitting 0 ends the run.
-       * Kept here so the tuning knob already has a home. */
-      decayPerUnstableRegionPerDay: 0.01,
-      unstableBelow: 35,
+       * that makes every spending decision a tradeoff, and on its own it sets
+       * the length of a term: 100 / 0.03 = ~3300 days, about 50 minutes. */
+      decayPerDay: 0.03,
+
+      /* --- approval: the reward for actually governing well ---------------
+       * A country visibly doing better buys its leader patience. Above
+       * `approvalPivot` national stability, the baseline decay slows, down to
+       * `decayFloorPerDay` and no further.
+       *
+       * Mandate is still NEVER recoverable — this only ever slows the drain,
+       * so the run stays a strict clock and you can't bank a good decade.
+       * (BALANCE.md asked this question outright; this is the answer.)
+       *
+       * It exists because without it the clock punished the one thing the
+       * game is about. Holding the country together with Public Works costs
+       * no Mandate, so a player who developed NOTHING outlived one who
+       * rebuilt the country, every time — investing was pure clock-loss.
+       * Now development buys back the time it costs, but only if it actually
+       * makes the country better. */
+      approvalPivot: 50,
+      decayReliefPerStabilityPoint: 0.0012,
+      decayFloorPerDay: 0.012,
+      /* Unrest is what actually kills a government. Two terms, deliberately:
+       * a flat cost the moment a region crosses the line (so the threshold is
+       * a visible cliff the player can steer away from) plus a per-point cost
+       * for how far below it has fallen (so a region in free-fall gets worse,
+       * not merely bad). */
+      decayPerUnstableRegionPerDay: 0.008,
+      decayPerUnstablePointPerDay: 0.0006,
+      unstableBelow: UNSTABLE_BELOW,
       gameOverAt: 0,
       /* Meter colour thresholds: green at or above `healthyAbove`, amber
        * between, red below `warnBelow`. Purely a UI signal, but it lives here
@@ -77,24 +137,118 @@
       },
       /* Treasury gained per point of national output per day. */
       treasuryPerOutputPerDay: 1.0,
-      /* PHASE 2: drift toward an equilibrium, unrest, neglect decay.
-       * Declared now so Phase 2 is a sim change, not a data change. */
-      stabilityDriftPerDay: 0,
+
+      /* --- NATURAL STABILITY: the level a region settles at ---------------
+       * This is the spine of Phase 2. A region does not hold whatever
+       * stability you last pushed it to; it drifts toward a natural level set
+       * by what you have actually built there:
+       *
+       *   natural = base + development x perDevelopment
+       *                  + garrison
+       *                  - unrest next door
+       *                  - austerity
+       *
+       * It is what makes the three region actions different IN KIND rather
+       * than differently sized:
+       *
+       *   Public Works pushes stability ABOVE the natural level — and it
+       *     washes back out. A real fix for today, never a permanent one.
+       *   Garrison raises the natural level itself, but only for as long as
+       *     you keep paying for it.
+       *   Invest raises the natural level permanently. It is the ONLY thing
+       *     that does, which is what makes development the long game and what
+       *     stops "stabilise once, then idle" from being the winning move.
+       *
+       * `base` sits deliberately BELOW `mandate.unstableBelow`: an
+       * undeveloped, ungarrisoned region does not merely stagnate, it settles
+       * into unrest and starts costing Mandate. Doing nothing has to lose
+       * ground, or waiting becomes the optimal play and the game turns into a
+       * spreadsheet. */
+      naturalStability: {
+        base: 26,
+        /* Development 9 reaches the unrest line and development 71 reaches
+         * 100. Fitted against the starting map so the country opens slightly
+         * BELOW its natural level everywhere — a gentle nationwide slide the
+         * player has time to answer — while the three frontier regions
+         * (development 5-8) sit under the line from day one and start costing
+         * Mandate immediately. That fit is the whole "garrison it now or
+         * develop it properly" decision, so it is the first number to reach
+         * for when tuning. */
+        perDevelopment: 1.05,
+        /* Roughly what 17 points of development would buy, rented by the day
+         * instead of owned. */
+        garrisonBonus: 18,
+        /* Unrest is contagious: a crisis left alone eats outward across the
+         * map instead of sitting still. */
+        perUnstableNeighbour: -4,
+        /* Applied in proportion to the share of the upkeep bill that went
+         * unpaid, so austerity is a slope, not a cliff. */
+        austerityPenalty: -25,
+      },
+      /* How much of the gap to the natural level a region closes per day.
+       * At 0.004 a Public Works (+8) has largely washed out after ~400 days,
+       * which is what puts the player back in the room. */
+      reversionPerDay: 0.004,
+
+      /* Unconditional decay of development. Deliberately 0: infrastructure
+       * does not rot on a schedule, it rots when you stop paying for it, and
+       * `upkeep` below is that rule. The knob stays so a future phase (or a
+       * leader handicap) can turn it on without a code change. */
       developmentDecayPerDay: 0,
+
+      /* --- upkeep: the sink that stops Treasury piling up -----------------
+       * Everything you have built costs money to keep standing, charged every
+       * day before the player can spend anything.
+       *
+       * The number matters more than it looks. A point of development earns
+       * `output.perDevelopment` (0.03) x stabilityFactor per day and costs
+       * 0.018 per day to hold, so investment only pays back above a
+       * stabilityFactor of 0.6 — i.e. stability 47, just under where the
+       * country starts. Developing a region you have not stabilised actively
+       * loses money. That single relationship is what makes stability the
+       * first move, and it is also what stops the late game running away:
+       * every point built raises the bill forever. */
+      upkeep: {
+        treasuryPerDevelopmentPerDay: 0.018,
+        /* When the Treasury cannot cover the bill, the UNPAID FRACTION of it
+         * drives this. It is the "development decays without upkeep" rule,
+         * and it is why bankruptcy is a death spiral rather than a plateau:
+         * unpaid regions crumble, crumbling regions earn less, and the bill
+         * you cannot pay stays the same size. (Austerity hits stability too,
+         * via `naturalStability.austerityPenalty` above.) */
+        unpaidDevelopmentDecayPerDay: 0.05,
+      },
+
+      /* --- garrisons: the standing commitment ------------------------------
+       * A garrison is the only thing in the game that holds a region steady
+       * on its own, and it is deliberately expensive in all three currencies:
+       * Manpower to raise, Treasury every single day to keep, and Mandate
+       * because nobody likes soldiers in the streets. */
+      garrison: {
+        treasuryUpkeepPerDay: 0.5,
+      },
     },
 
     /* Region panel actions. Each is fully described by data: what it costs,
-     * what it changes, and how long the effect takes. The UI builds buttons
-     * from this list, so adding an action later is a data edit plus one case
-     * in src/sim.js. */
+     * what it changes, and what has to be true of the region first. The UI
+     * builds buttons from this list and greys out the ones whose `requires`
+     * are unmet, so adding an action later is a data edit plus one case in
+     * src/sim.js.
+     *
+     * `requires` keys understood by the sim:
+     *   garrisoned      — the region must (not) have a garrison
+     *   stabilityBelow  — the region must be under this stability */
     actions: {
       invest: {
         id: 'invest',
         label: 'Invest',
-        blurb: 'Fund local industry. Raises Development.',
+        blurb: 'Fund local industry. Raises Development — and the upkeep bill.',
         cost: { treasury: 120 },
         effect: { development: 6 },
-        mandateCost: 0.5,
+        /* Deliberately small. Development is the only permanent fix in the
+         * game, and at 0.5 the clock punished using it: a player who built
+         * nothing outlived one who rebuilt the country. */
+        mandateCost: 0.2,
         phase: 1,
       },
       publicWorks: {
@@ -109,11 +263,33 @@
       garrison: {
         id: 'garrison',
         label: 'Garrison',
-        blurb: 'Station troops. Big stability gain, unpopular.',
-        cost: { treasury: 60, manpower: 2 },
-        effect: { stability: 14 },
+        blurb: 'Station troops. Holds the region steady, costs you daily.',
+        cost: { treasury: 60, manpower: 6 },
+        effect: { stability: 14, garrisoned: true },
         mandateCost: 3,
-        phase: 2, /* locked until Manpower is simulated */
+        requires: { garrisoned: false },
+        phase: 2,
+      },
+      withdraw: {
+        id: 'withdraw',
+        label: 'Withdraw Troops',
+        blurb: 'Stand the garrison down. Stops the upkeep, loosens the grip.',
+        cost: {},
+        refund: { manpower: 3 },
+        effect: { stability: -8, garrisoned: false },
+        mandateCost: 0,
+        requires: { garrisoned: true },
+        phase: 2,
+      },
+      relief: {
+        id: 'relief',
+        label: 'Emergency Relief',
+        blurb: 'Spend your standing to pull a region back from the brink.',
+        cost: { politicalCapital: 6, treasury: 40 },
+        effect: { stability: 18 },
+        mandateCost: 0,
+        requires: { stabilityBelow: UNSTABLE_BELOW },
+        phase: 2,
       },
     },
 
