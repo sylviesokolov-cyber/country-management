@@ -225,3 +225,92 @@ Template:
 - Worth committing in Phase 5: the headless harness used here was a scratch
   file. Multi-style runs earned their keep and shouldn't be rewritten each time.
 - Still worth starting now: recruit the 12 Play Store testers (14-day clock).
+
+
+## 2026-09-16 — Phase 3: the tech tree, the ministry and the modifier layer
+
+**Built**
+- **`src/modifiers.js`, which the plan never mentioned and everything needed.**
+  Three systems landed this phase and all three want to change the same
+  simulation. Done naively that is `if (state.tech.completed.includes(...))`
+  scattered through `src/sim.js`, and every future node is a code change.
+  Instead tech nodes, policies and appointee traits all declare the same
+  payload — `mods` (numbers) and `flags` (switches) — and this file sums them
+  into one table keyed by string. Keys ending `.mult` multiply, everything else
+  adds; that one rule is the whole merge algorithm, and it is why two nodes
+  that both touch output compose instead of one silently winning. **Phase 3 did
+  not add a single `if (hasTech(...))` to the sim.**
+- **The tech tree**: 20 nodes, four branches, ~4,900 research days against a
+  ~3,300-day term. Nobody finishes it. Political Capital is charged when a node
+  is *queued*, not when it starts, so a four-deep queue is standing already
+  spent; cancelling refunds it in full and drops anything orphaned behind it.
+- **Five nodes that rewrite a system rather than scaling one** — Federal
+  Devolution (regions self-correct 2.5× faster, the centre collects 12% less),
+  Deficit Financing (austerity stops eating the country and starts burning
+  Mandate), Martial Doctrine (a garrison stops unrest crossing it, and costs
+  Mandate daily), Trunk Network (a region's development lifts its neighbours,
+  so the adjacency map stops being purely a threat), Technocratic Ministries
+  (Political Capital from development instead of from calm — the only way out
+  of a permanent crisis).
+- **Appointees**: generated from a seeded RNG *stored in the save*, so a reload
+  cannot re-roll the pool until a better candidate appears. A minister's traits
+  are national; a governor's apply only in the region they are posted to, which
+  is the entire reason posting is a decision. Drawbacks pay a **negative
+  salary**, so the pool can offer somebody cheap and dangerous instead of
+  merely worse. Salaries are billed with the upkeep bill — one bill, one
+  austerity rule, and an over-staffed government dies exactly like an over-built
+  one.
+- **Policies**: four categories, one option always in force, an enact cost in
+  Political Capital and a 240-day cooldown. A posture, not a bonus.
+- Three real screens in the overlay (`src/ui/ministry.js`), schema **v3** with a
+  v2→v3 migration, and the run summary now reports research and appointments.
+
+**Broke / learned**
+- **The region panel was quoting a price it no longer charged.** Action costs
+  were written into the button once, when the panel was built. The moment a
+  cost could be modified per region — Industrial Credit, or a Builder governor
+  — the button said 120 and the sim took 84. Costs are now re-read from
+  `Sim.actionCost` every frame, and rounded there rather than at display time,
+  so the number shown and the number taken are the same call.
+- **A cached modifier table is a silent-failure machine.** Rebuilding the table
+  per region per tick is too slow, so it caches against `state.modVersion`.
+  Forget to bump that counter on one mutation and the newly completed node
+  simply does nothing until something else happens to invalidate the cache —
+  no error, no wrong number, just a purchase that didn't take. Every mutation
+  now goes through one `touch(state)` function for exactly that reason.
+- **Data that does nothing is invisible.** A typo in a node's `mods` key makes
+  a node that looks bought and has no effect. `Mods.audit()` returns every key
+  the data declares that the sim never reads, and the harness asserts it is
+  empty. (Per-action keys like `cost.invest.mult` are read generically, so the
+  audit checks the action id exists instead.)
+- **Rebuilding a tab every day threw the player back to the top of it.** The
+  Regions list got away with it at 16 short rows; the tech tree is three
+  screens tall. `Overlay` now preserves `scrollTop` across a rebuild.
+- **Cancelling a queued node can orphan the ones behind it.** Prerequisites
+  count as met by anything *queued*, so you could queue a tier-1 node, queue
+  the tier-3 node behind it, then cancel the tier-1 and keep a tier-3 you were
+  never entitled to. `Sim.cancelTech` now re-walks the queue until nothing more
+  drops, and refunds everything it drops.
+- **Garrisons are a trap, and it isn't Phase 3's fault.** Varying only the
+  garrison cap: 0 → 3,350 days, 2 → 2,939, 3 → 2,671, 5 → 2,295. That slope is
+  Phase 2's pricing; Martial Doctrine only made it visible by adding a daily
+  Mandate charge on top. Logged in BALANCE.md and TODO for the Phase 5 pass
+  rather than papered over — events (Phase 4) may be what makes triage
+  unavoidable and garrisons worth their price.
+- **Federal Devolution was worth checking rather than assuming.** Same seed,
+  same style: with it and investing, 3,765 days; without it, 3,327; with it but
+  patching via Public Works, 3,326. It rewards building and is worth exactly
+  nothing to a patcher — which is the design rule (DESIGN.md §2.3) actually
+  holding rather than being asserted.
+
+**Next**
+- Phase 4: `data/leaders.js`, the leader select screen, `data/events.js` and
+  the event scheduler. Leaders should need no new machinery — a leader is a
+  `mods`/`flags` payload like everything else now, which is what the modifier
+  layer was built for.
+- Political Capital sits pinned at its 100 cap for the last third of a well-run
+  run, so node prices stop mattering late. Worth a look once events give PC
+  another sink.
+- Still deferred: the headless harness is *still* a scratch file, now on its
+  second phase of earning its keep. It is in Phase 5's list.
+- Still worth starting now: recruit the 12 Play Store testers (14-day clock).

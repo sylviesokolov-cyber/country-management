@@ -25,12 +25,12 @@
   Mandate.BALANCE = {
     /* Bumped when the meaning of these numbers changes enough that old saves
      * would be balanced differently. Recorded into saves for debugging. */
-    balanceVersion: 2,
+    balanceVersion: 3,
 
     /* Actions carry the phase that made them real. Anything above this number
      * is authored-but-not-live, so future phases can land their data before
      * their logic without the buttons going live early. */
-    implementedPhase: 2,
+    implementedPhase: 3,
 
     time: {
       /* Real milliseconds per simulated day, per speed setting.
@@ -56,10 +56,16 @@
        * end of the term. */
       politicalCapital: {
         start: 20,
-        perDayBase: 0.02,
+        perDayBase: 0.04,
         pivotStability: 50,
-        perStabilityPointPerDay: 0.002,
+        perStabilityPointPerDay: 0.004,
         max: 100,
+        /* Used ONLY under the `pcFromDevelopment` flag (Technocratic
+         * Ministries), which replaces the stability term above with this one.
+         * At the starting national development of 267 it pays 0.107/day —
+         * deliberately a touch better than a well-run country's stability
+         * term, because by tier 3 you have spent 24 PC and 360 days on it. */
+        perDevelopmentPerDay: 0.0004,
       },
 
       /* MANPOWER — the people you can call on.
@@ -110,6 +116,12 @@
       decayPerUnstableRegionPerDay: 0.008,
       decayPerUnstablePointPerDay: 0.0006,
       unstableBelow: UNSTABLE_BELOW,
+      /* Used ONLY under the `austerityHitsMandate` flag (Deficit Financing).
+       * The unpaid SHARE of the day's bill is charged here instead of eating
+       * development and stability. At a full shortfall that is 0.08/day on
+       * top of the baseline — roughly tripling the clock, survivable for a
+       * few hundred days and fatal as a way of life. */
+      austerityPerShortfallPerDay: 0.08,
       gameOverAt: 0,
       /* Meter colour thresholds: green at or above `healthyAbove`, amber
        * between, red below `warnBelow`. Purely a UI signal, but it lives here
@@ -291,6 +303,62 @@
         requires: { stabilityBelow: UNSTABLE_BELOW },
         phase: 2,
       },
+    },
+
+    /* --- PHASE 3: RESEARCH ------------------------------------------------
+     * The queue spends one resource the player cannot earn faster by playing
+     * better: days. `pointsPerDay` is deliberately 1, so a node's `days` in
+     * data/tech.js reads as literal in-game days at the base rate and the
+     * tree can be costed by eye against the ~3300-day term.
+     *
+     * The whole tree is ~4900 days of research against a term of ~3300, and
+     * that ratio is the point: nobody finishes it, so a run is a branch
+     * choice. Research modifiers (Civil Service, a Scholar minister) move
+     * that ratio rather than handing out a bonus. */
+    research: {
+      pointsPerDay: 1,
+      /* Enough to plan a branch ahead, few enough that the queue is a
+       * commitment. Political Capital is charged on QUEUEING, not on start,
+       * so a long queue is money already spent. */
+      queueMax: 4,
+    },
+
+    /* --- PHASE 3: APPOINTEES ---------------------------------------------
+     * Slots are the whole design (DESIGN.md 2.4): hiring is a continuing
+     * reassignment problem, not a shopping trip. Two of each to start, and
+     * two tech nodes that each add one — so a fully invested government runs
+     * three ministers and three governors out of sixteen regions.
+     *
+     * Salary is per DAY and is billed with the upkeep bill, which means an
+     * over-staffed government goes bankrupt the same way an over-built one
+     * does. The hiring fee is a multiple of the salary, so a cheap flawed
+     * candidate is cheap to take on as well as to keep. */
+    appointees: {
+      ministerSlots: 2,
+      governorSlots: 2,
+      /* The candidate pool. It refreshes on a timer rather than on demand, so
+       * "hire nobody and wait for a perfect Technocrat" costs real days. */
+      initialPool: 4,
+      poolMax: 5,
+      refreshEveryDays: 120,
+      /* Every candidate's salary: this, plus each trait's contribution
+       * (drawbacks contribute a NEGATIVE amount — see data/traits.js). */
+      salaryBase: 0.40,
+      /* One-off Treasury cost to hire, as a multiple of the daily salary:
+       * ~3 months of wages up front. */
+      hiringFeeDays: 90,
+      /* Chance a generated candidate carries a drawback. A little over half,
+       * because a pool of clean candidates makes hiring a formality. */
+      drawbackChance: 0.55,
+    },
+
+    /* --- PHASE 3: POLICIES ------------------------------------------------
+     * A policy is a posture, not a purchase: exactly one option per category
+     * is always active. The cooldown is the real cost — without it the
+     * optimal play is to swap to whatever suits this minute, which turns a
+     * standing decision into a per-frame one. */
+    policies: {
+      cooldownDays: 240,
     },
 
     /* Stability bands drive the map colours. Checked top-down: the first band

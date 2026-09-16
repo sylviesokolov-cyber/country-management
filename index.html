@@ -190,9 +190,18 @@
 <script src="data/balance.js"></script>
 <script src="data/map-geometry.js"></script>
 <script src="data/regions.js"></script>
+<!-- Phase 3 content: the tech tree, appointee traits and the hiring pool's raw
+     material, and the standing policies. All pure data, no logic. -->
+<script src="data/tech.js"></script>
+<script src="data/traits.js"></script>
+<script src="data/appointees.js"></script>
+<script src="data/policies.js"></script>
 
 <script src="src/util.js"></script>
 <script src="src/state.js"></script>
+<!-- modifiers.js MUST come before sim.js: the sim captures Mandate.Mods at
+     load time, and it is what turns tech/appointees/policies into numbers. -->
+<script src="src/modifiers.js"></script>
 <script src="src/sim.js"></script>
 <script src="src/loop.js"></script>
 
@@ -200,6 +209,7 @@
 <script src="src/ui/map.js"></script>
 <script src="src/ui/hud.js"></script>
 <script src="src/ui/panel.js"></script>
+<script src="src/ui/ministry.js"></script>
 <script src="src/ui/overlay.js"></script>
 <script src="src/ui/fullscreen.js"></script>
 

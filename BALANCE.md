@@ -239,3 +239,90 @@ none. It is dead at 20 minutes regardless, and "rich, illegitimate and out of
 office" is the right ending for it.
 
 ### _(next entry goes here)_
+
+---
+
+## Phase 3 — progression systems (balance v3)
+
+The phase added three systems that all change the same simulation, so the first
+balance question was not a number at all: **how does anything change the sim
+without the sim knowing about it?** `src/modifiers.js` is the answer — tech
+nodes, policies and appointee traits all declare `mods` and `flags`, keys ending
+`.mult` multiply and everything else adds, and `src/sim.js` reads keys out of
+one table. That is why this entry can talk about tuning instead of about code.
+
+### Changed
+
+| Value | From | To | Why |
+| --- | --- | --- | --- |
+| `politicalCapital.perDayBase` | 0.02 | 0.04 | Phase 2 set PC income blind, with only Emergency Relief to spend it on, and DEVLOG flagged it for re-tuning once node prices existed. The whole tech tree costs **304 PC**; at the old rate a well-run country earned ~120 across a full term, so two thirds of the tree was unreachable at any skill level. |
+| `politicalCapital.perStabilityPointPerDay` | 0.002 | 0.004 | Same. At the new rate a country held at 60 stability earns ~264 PC a term, so the tree is *just* affordable if you govern well and not otherwise — which is the intended shape: PC binds the bad run, research time binds the good one. |
+| `mandate.austerityPerShortfallPerDay` | — | 0.08 | New. Only read under the `austerityHitsMandate` flag (Deficit Financing). At a full shortfall it roughly triples the baseline drain: survivable for a few hundred days, fatal as a way of life. |
+| `martialDoctrine` mandate cost | 0.004 | 0.003 | First pass charged 0.004 per garrison per day. A three-garrison government was paying as much Mandate for its troops as for the honeymoon ending, on top of the Phase 2 garrison bill. Trimmed rather than removed — the point of the node is that a firewall has a price. |
+
+### New numbers worth knowing
+
+- **The tree is ~4,900 research days against a ~3,300-day term.** Nobody
+  finishes it; a run gets roughly two branches. `research.pointsPerDay` is
+  deliberately 1, so a node's `days` reads as literal in-game days at the base
+  rate and the tree can be costed by eye.
+- **Total tree cost is 304 PC against a ~284 PC term budget** (20 start + ~264
+  earned). The two constraints bind in different runs, which is what makes them
+  both real.
+- **`appointees.salaryBase` 0.40/day** plus trait contributions, billed with the
+  upkeep bill. A full 3+3 government costs ~3–4 Treasury a day against a
+  national gross of ~8 at the start — a real bite, not a rounding error.
+- **`policies.cooldownDays` 240.** Without a cooldown the optimal play is to
+  swap to whatever suits this minute, which turns a standing decision into a
+  per-frame one.
+
+### What the harness found
+
+Ten play styles, one seed, `Sim` driven headless. Minutes are at 1×.
+
+| Style | mins | stability | development | notes |
+| --- | --- | --- | --- | --- |
+| do nothing | 20 | 40 | 267 | unchanged from Phase 2 |
+| hold the line (Public Works) | 50 | 48 | 267 | unchanged from Phase 2 |
+| build hard, ignore stability | 18 | 48 | 501 | unchanged from Phase 2 |
+| develop the weakest | 50 | 48 | 273 | unchanged from Phase 2 |
+| Economy branch + develop | 42 | **84** | **1149** | richest country, shortest good run |
+| Governance branch + develop | 50 | 50 | 267 | |
+| Security branch + garrisons | 31 | 53 | 234 | see below |
+| Infrastructure branch + develop | 51 | 72 | 633 | |
+| Governance + Infra + full staff | **55** | 56 | 267 | longest run in the set |
+| Heavy Levy + Generous spending | 48 | 46 | 267 | policies alone are worth ~5 minutes |
+
+**Federal Devolution does what it was designed to do.** Isolated against the
+same seed: with the node and investing, 3,765 days; *without* the node and
+investing, 3,327; with the node but patching with Public Works instead,
+3,326. It rewards building and is worth nothing at all to a patcher, which is
+exactly the intended "changes what the player does for the rest of the run".
+
+**Garrisons are a trap outside crisis triage, and this is a Phase 2 property
+Phase 3 only made visible.** Holding the branch and the play style fixed and
+varying only the garrison cap: 0 garrisons → 3,350 days, 2 → 2,939, 3 → 2,671,
+5 → 2,295. Every garrison is 3 Mandate to raise and 0.5 Treasury a day to keep,
+and the harness styles never face a crisis they cannot simply invest out of, so
+they never collect the upside. Martial Doctrine adds to the slope but did not
+create it. **Left as-is and logged for the Phase 5 pass** — the honest fix is
+either a cheaper garrison or an event that makes triage unavoidable, and Phase 4
+is bringing events.
+
+The other two flag nodes were verified against engineered states rather than
+full runs, because the conditions they change are hard to sustain by playing:
+Deficit Financing was checked against a country with a genuine, sustained
+upkeep shortfall (development held up, stability crushed so income collapses),
+where it preserves development and stability and moves the cost onto Mandate as
+designed; Technocratic Ministries was checked at 10 national stability, where
+normal PC income is 0.00/day and the node pays 0.147/day.
+
+### Still open
+
+- Political Capital sits at its 100 cap for the last third of a well-run game,
+  so late-game income is simply wasted. That is consistent with "goodwill is not
+  a bank account", but it does mean node *prices* stop mattering once the tree
+  is nearly done.
+- Garrisons, as above.
+- Nothing has been tuned against a run with **events** in it, and Phase 4 adds
+  the first pressure these systems will face that the player cannot see coming.

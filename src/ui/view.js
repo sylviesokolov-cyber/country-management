@@ -81,6 +81,23 @@
     });
   };
 
+  /* ------------------------------------------------------------------------
+   * node: the smallest possible createElement wrapper.
+   *
+   * The Phase 3 screens build a few hundred elements between them, and
+   * `document.createElement` + two assignments three times per row buries the
+   * structure in boilerplate. innerHTML would be shorter still, but appointee
+   * names come out of a generator and region names out of a data file, so
+   * anything built by string concatenation is one bad data edit away from
+   * injecting markup. textContent is never that.
+   * ---------------------------------------------------------------------- */
+  View.node = function (tag, className, text) {
+    var el = document.createElement(tag);
+    if (className) el.className = className;
+    if (text !== undefined && text !== null) el.textContent = text;
+    return el;
+  };
+
   /** Open/close a panel or overlay, keeping ARIA in step with the class. */
   View.setOpen = function (el, open) {
     if (!el) return;

@@ -9,9 +9,12 @@ and a **Mandate** meter that drains from the day you take office. Everything
 you build costs mandate, time or both. When the mandate runs out, so does your
 government. A run lasts roughly 45–60 minutes.
 
-**Status: Phase 2 (the full economy and the clock).** All three resources are
-simulated, regions drift toward a natural stability set by what you've built
-there, unrest spreads between neighbours, and a run now ends with a proper
+**Status: Phase 3 (progression systems).** All three resources are simulated,
+regions drift toward a natural stability set by what you've built there, and
+unrest spreads between neighbours. On top of that: a twenty-node **tech tree**
+with a research queue that costs time as well as Political Capital,
+**appointees** you hire, pay daily and post to a region, and standing
+**policies** you live with rather than switch. A run ends with a proper
 end-of-term summary. See [TODO.md](TODO.md) for the plan and
 [DEVLOG.md](DEVLOG.md) for what happened when.
 
@@ -84,9 +87,14 @@ data/                   ── ALL TUNABLE / AUTHORED CONTENT ──
   balance.js            every cost, rate and curve in the game
   regions.js            the 16 regions: names, terrain, starting stats
   map-geometry.js       pure SVG geometry — no gameplay values
+  tech.js               the 20-node tech tree, four branches
+  traits.js             what an appointee is good and bad at
+  appointees.js         names and titles the hiring pool is drawn from
+  policies.js           standing national decisions
 src/
   util.js               clamp, number and date formatting
   state.js              the game state object + versioned save/load
+  modifiers.js          tech + policies + appointees → one table of numbers
   sim.js                THE SIMULATION — tick(), actions, derived values
   loop.js               fixed-timestep clock (real time → ticks)
   main.js               boot and wiring
@@ -95,6 +103,7 @@ src/
     map.js              builds and updates the SVG map
     hud.js              the floating HUD (chips, clock, speed, Mandate gauge)
     panel.js            region detail panel (slides in from the right)
+    ministry.js         the Tech, Appointees and Policies screens
     overlay.js          full-screen management overlay + the region list
 .github/workflows/
   deploy-pages.yml      auto-deploy to GitHub Pages on push to main

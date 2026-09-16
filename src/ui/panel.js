@@ -24,6 +24,7 @@
   var onAction = function () {};
   var statNodes = {};
   var garrisonNote = null;
+  var governorNote = null;
 
   Panel.build = function (handlers) {
     panelEl = Util.el('region-panel');
@@ -82,6 +83,18 @@
     garrisonNote.appendChild(garrisonText);
     bodyEl.appendChild(garrisonNote);
 
+    /* Who governs here, if anyone. A governor's traits apply ONLY in their
+     * region, so the region panel is the honest place to say so — the
+     * Appointees screen can tell you who you employ, but only this can tell
+     * you whether their traits are doing anything where you are looking. */
+    governorNote = document.createElement('div');
+    governorNote.className = 'garrison-note garrison-note--governor';
+    governorNote.appendChild(iconSpan('\u{1F464}'));
+    var governorText = document.createElement('span');
+    governorText.dataset.memoKey = 'region-governor';
+    governorNote.appendChild(governorText);
+    bodyEl.appendChild(governorNote);
+
     /* --- action buttons, generated from the balance data --- */
     var actions = document.createElement('div');
     actions.className = 'actions';
@@ -129,6 +142,18 @@
 
     if (garrisonNote) garrisonNote.hidden = !region.garrisoned;
 
+    var governor = Mandate.Sim.governorOf(state, region.id);
+    if (governorNote) {
+      governorNote.hidden = !governor;
+      if (governor) {
+        View.setText(governorNote.querySelector('[data-memo-key]'),
+          governor.name + ' \u2014 ' +
+          Mandate.Mods.traitsOf(governor).map(function (trait) {
+            return trait.label;
+          }).join(', '));
+      }
+    }
+
     /* Re-check every frame: Treasury is ticking up and stability is drifting,
      * so buttons un-grey themselves the moment they become legal. Garrison
      * and Withdraw swap places rather than sitting next to each other greyed
@@ -141,6 +166,15 @@
       var hidden = requiresGarrison && !!region.garrisoned !== action.requires.garrisoned;
       if (btn.hidden !== hidden) btn.hidden = hidden;
       if (hidden) continue;
+
+      /* The price is re-read every frame, not written once when the panel was
+       * built: tech and a region's governor both change what an action costs,
+       * and they change it PER REGION. A button quoting a stale price would be
+       * charging one number and showing another. */
+      var priceEl = btn.querySelector('.action__price');
+      var price = formatCost(
+        Mandate.Sim.actionCost(state, btn.dataset.actionId, region.id), action.refund);
+      if (priceEl.textContent !== price) priceEl.textContent = price;
 
       var check = Mandate.Sim.canAfford(state, btn.dataset.actionId, region.id);
       var disabled = !check.ok;
@@ -266,7 +300,11 @@
 
     var cost = document.createElement('div');
     cost.className = 'action__cost';
-    cost.textContent = formatCost(action.cost, action.refund);
+    /* Filled in by Panel.render, which knows which region is open and can
+     * therefore ask the sim for the real, modified price. */
+    var price = document.createElement('span');
+    price.className = 'action__price';
+    cost.appendChild(price);
 
     var reason = document.createElement('small');
     reason.className = 'action__reason';

@@ -71,21 +71,37 @@ Tick items off as they land, and note anything deferred in `DEVLOG.md`.
 
 ---
 
-## Phase 3 — Progression systems
+## Phase 3 — Progression systems ✅ *(complete)*
 
-- [ ] `data/tech.js`: four branches — Economy, Infrastructure, Governance,
-      Security
-- [ ] Tech costs Political Capital **plus research time** (a research queue)
-- [ ] Tech tree UI in the Tech tab: prerequisites, progress, affordability
-- [ ] At least three mid-tier nodes that **change how systems interact**
-      (e.g. *Federal Devolution*: regions self-manage stability but generate
-      less Treasury) — not flat percentage bonuses
-- [ ] `data/traits.js` + `data/appointees.js`: trait definitions and the hiring
-      pool
-- [ ] Appointee hiring, recurring salary cost, and drawbacks
-- [ ] Assignment to a region or a ministry, with **limited slots**
-- [ ] Appointee effects actually applied in the simulation
-- [ ] Policies tab: standing national decisions with ongoing costs
+- [x] `data/tech.js`: four branches — Economy, Infrastructure, Governance,
+      Security. Twenty nodes, ~4,900 research days against a ~3,300-day term,
+      so the tree is a direction rather than a checklist
+- [x] Tech costs Political Capital **plus research time** (a research queue).
+      Political Capital is charged on **queueing**, so a full queue is standing
+      already spent; cancelling refunds it and drops anything orphaned behind it
+- [x] Tech tree UI in the Tech tab: four branch columns, prerequisites,
+      live progress and days-remaining at the current rate, affordability
+- [x] **`src/modifiers.js`** — the piece the plan didn't name but all three
+      systems needed: tech, policies and appointees all declare `mods`/`flags`
+      and are summed into one table the sim reads by key. No system in Phase 3
+      required a single `if (hasTech(...))` in `src/sim.js`
+- [x] Five mid-tier nodes that **change how systems interact** — Federal
+      Devolution, Deficit Financing, Martial Doctrine, Trunk Network and
+      Technocratic Ministries (see `DESIGN.md` §2.3 for what each rewrites)
+- [x] `data/traits.js` + `data/appointees.js`: 16 traits and a generated pool,
+      drawn through a seeded RNG stored in the save so a reload can't re-roll it
+- [x] Appointee hiring, recurring salary cost, and drawbacks — drawbacks pay a
+      **negative salary**, so a flawed candidate is a real offer rather than
+      just a worse one. Salaries are billed with the upkeep bill, so an
+      over-staffed government goes bankrupt exactly like an over-built one
+- [x] Assignment to a region or a ministry, with **limited slots** (2+2, raised
+      to 3+3 by two tech nodes). A minister's traits are national; a governor's
+      apply **only in the region they are posted to**
+- [x] Appointee effects actually applied in the simulation, per region, via the
+      same modifier table as tech — including per-region action prices, which
+      the region panel now re-reads every frame instead of quoting a stale one
+- [x] Policies tab: four categories of standing national decisions, one option
+      always in force, with enact costs, ongoing costs and a 240-day cooldown
 
 ---
 
@@ -109,7 +125,12 @@ Tick items off as they land, and note anything deferred in `DEVLOG.md`.
 - [ ] Full balance pass against real playtests — log every change in
       `BALANCE.md`
 - [ ] Headless balance harness: run N ticks in Node and dump the curves
-      *(the sim has no DOM dependencies, so this is straightforward)*
+      *(the sim has no DOM dependencies, so this is straightforward)*.
+      Phase 3 used a ten-style scratch version of this for the second time;
+      it has now earned a home in the repo
+- [ ] Re-visit whether garrisons are ever worth it outside crisis triage — in
+      every Phase 3 harness style, more garrisons meant a shorter run. See the
+      Phase 3 entry in `BALANCE.md`
 - [ ] Verify a run lands in the 45–60 minute window
 - [ ] Save/load hardening: corrupt-save handling, a real migration step, manual
       save/restart controls

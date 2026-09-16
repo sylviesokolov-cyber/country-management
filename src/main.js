@@ -46,6 +46,22 @@
       getState: function () { return state; },
       onPickRegion: onPickRegionFromList,
     });
+    /* The Phase 3 screens. Every handler is the same three lines: ask the sim,
+     * save if it happened, redraw the open tab. The redraw is explicit because
+     * these tabs only rebuild when the DAY changes — without it a tap would
+     * appear to do nothing for up to a second, or forever while paused. */
+    Mandate.Ministry.build({
+      onQueueTech: function (id) { commit(Mandate.Sim.queueTech(state, id)); },
+      onCancelTech: function (id) { commit(Mandate.Sim.cancelTech(state, id)); },
+      onHire: function (id) { commit(Mandate.Sim.hire(state, id)); },
+      onDismiss: function (id) { commit(Mandate.Sim.dismiss(state, id)); },
+      onAssign: function (id, regionId) {
+        commit(Mandate.Sim.assign(state, id, regionId));
+      },
+      onEnactPolicy: function (categoryId, optionId) {
+        commit(Mandate.Sim.enactPolicy(state, categoryId, optionId));
+      },
+    });
 
     /* The two bottom-corner buttons are just overlay openers. */
     Mandate.View.onTap(Util.el('btn-ministry'), function () { onOverlayOpen('tech'); });
@@ -113,11 +129,25 @@
     Mandate.Panel.open(state, regionId);
   }
 
+  /**
+   * The tail of every management decision: if the sim accepted it, save and
+   * redraw the open tab. Passing the sim's own return value through means the
+   * UI never has to decide for itself whether something happened.
+   */
+  function commit(happened) {
+    if (!happened) return;
+    Mandate.State.save(state);
+    Mandate.Overlay.refresh(state);
+  }
+
   function onRegionAction(regionId, actionId) {
     /* The UI asks; the simulation decides. If the action is illegal this is a
      * no-op and the button simply stays greyed out on the next frame. */
     if (Mandate.Sim.applyAction(state, regionId, actionId)) {
       Mandate.State.save(state);
+      /* A region action can change what a management tab shows — an Invest
+       * moves the Manpower cap, a Garrison changes what a posting is worth. */
+      Mandate.Overlay.refresh(state);
     }
   }
 
@@ -172,6 +202,9 @@
         Util.formatInt(s.derived.nationalDevelopment) + '  (from ' +
         Util.formatInt(startingDevelopment()) + ')'],
       ['Term without unrest', calm + '%'],
+      ['Research completed',
+        s.stats.techCompleted + ' of ' + Mandate.TECH.nodes.length + ' nodes'],
+      ['Appointments made', Util.formatInt(s.stats.appointeesHired)],
       ['Decisions taken', Util.formatInt(s.stats.actionsTaken)],
       ['Treasury raised', Util.formatInt(s.stats.treasuryEarned)],
     ].forEach(function (pair) {

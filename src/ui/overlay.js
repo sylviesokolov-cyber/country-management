@@ -6,9 +6,10 @@
  * for a permanent tab bar, so the whole screen becomes the menu instead, opened
  * from the "Ministry" and "Regions" buttons in the bottom corners.
  *
- * The four game systems behind these tabs arrive in Phases 3 and 4. The shell
- * exists now so each future phase is "fill in one render function", not
- * "redesign the UI". The Regions tab is real and working today.
+ * As of Phase 3 four of the five tabs are real. Each one is a single call into
+ * another module (src/ui/ministry.js) — this file still knows nothing about
+ * what a tech node or an appointee is, which is what kept it the same size
+ * across three phases. Events is the last placeholder; it lands in Phase 4.
  * ========================================================================== */
 (function (Mandate) {
   'use strict';
@@ -25,34 +26,16 @@
    * describe what is coming; swapping one for a real UI touches nothing else. */
   var TABS = {
     tech: {
-      title: 'Technology & Policy',
-      render: function () {
-        setPlaceholder('Technology & Policy',
-          'Four branches — Economy, Infrastructure, Governance and Security — ' +
-          'bought with Political Capital <em>and research time</em>, so nodes ' +
-          'compete for the clock as well as the currency. Mid-tier unlocks ' +
-          'change how systems interact rather than handing out flat bonuses ' +
-          '(e.g. <em>Federal Devolution</em>: regions self-manage stability, ' +
-          'but generate less Treasury).', 3);
-      },
+      title: 'Technology',
+      render: function (state) { Mandate.Ministry.renderTech(bodyEl, state); },
     },
     appointees: {
       title: 'Appointees',
-      render: function () {
-        setPlaceholder('Appointees',
-          'Hire ministers and governors, assign them to a region or a ministry, ' +
-          'and pay their salary every month. Traits give real buffs; some come ' +
-          'with drawbacks. Slots are limited, so every appointment is a trade ' +
-          'and the right minister in the wrong region is a waste.', 3);
-      },
+      render: function (state) { Mandate.Ministry.renderAppointees(bodyEl, state); },
     },
     policies: {
       title: 'Policies',
-      render: function () {
-        setPlaceholder('Policies',
-          'Standing national decisions — taxation, conscription, press freedom — ' +
-          'each with an ongoing cost in Mandate or resources.', 3);
-      },
+      render: function (state) { Mandate.Ministry.renderPolicies(bodyEl, state); },
     },
     events: {
       title: 'Events',
@@ -63,7 +46,6 @@
           'government has done.', 4);
       },
     },
-    /* --- the one tab that is live in Phase 1 --- */
     regions: {
       title: 'Regions',
       render: function (state) {
@@ -151,6 +133,7 @@
     },
   };
 
+  /* Still used by the Events tab, which is Phase 4's. */
   function setPlaceholder(title, text, phase) {
     bodyEl.innerHTML =
       '<h3>' + title + '</h3><p>' + text + '</p>' +
@@ -179,10 +162,30 @@
     if (!tab) return;
 
     View.viewState.activeTab = tabId;
+    bodyEl.scrollTop = 0;   /* a freshly opened tab starts at the top */
     tab.render(handlers.getState());
     View.setOpen(overlayEl, true);
     syncButtons();
   };
+
+  /** Rebuild the open tab right now — after an action changed what it shows. */
+  Overlay.refresh = function (state) {
+    if (!View.viewState.activeTab) return;
+    rebuild(TABS[View.viewState.activeTab], state);
+  };
+
+  /**
+   * Rebuilding replaces every element in the body, which would throw the
+   * player back to the top of a long list mid-scroll. Tech in particular is
+   * taller than a landscape phone, so the scroll position has to survive the
+   * rebuild or the tab is unusable while the clock is running.
+   */
+  function rebuild(tab, state) {
+    if (!tab) return;
+    var scroll = bodyEl.scrollTop;
+    tab.render(state);
+    bodyEl.scrollTop = scroll;
+  }
 
   Overlay.close = function () {
     View.viewState.activeTab = null;
@@ -195,12 +198,17 @@
    * a 16-row list every frame would be wasteful, so it is rebuilt on a slow
    * cadence instead — often enough to feel live, rarely enough to be free.
    */
-  var lastListDay = -1;
+  var lastRenderedDay = -1;
+  var lastRenderedTab = null;
   Overlay.render = function (state) {
-    if (View.viewState.activeTab !== 'regions') return;
-    if (state.day === lastListDay) return;
-    lastListDay = state.day;
-    TABS.regions.render(state);
+    var tabId = View.viewState.activeTab;
+    /* Events is a static placeholder — rebuilding it every day would be pure
+     * cost. Everything else shows live numbers. */
+    if (!tabId || tabId === 'events') return;
+    if (state.day === lastRenderedDay && tabId === lastRenderedTab) return;
+    lastRenderedDay = state.day;
+    lastRenderedTab = tabId;
+    rebuild(TABS[tabId], state);
   };
 
   function syncButtons() {

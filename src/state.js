@@ -25,7 +25,7 @@
    * renamed, removed). `migrate()` below then decides what to do with older
    * saves. Getting this in from day one is much cheaper than retrofitting it
    * after players have saves worth keeping. */
-  State.SCHEMA_VERSION = 2;
+  State.SCHEMA_VERSION = 3;
   State.SAVE_KEY = 'mandate:save';
 
   /**
@@ -76,6 +76,53 @@
 
       regions: regions,
 
+      /* --- PHASE 3 --------------------------------------------------------
+       * Three systems, three small blocks. Note that none of them stores any
+       * EFFECT: what a completed node or a hired minister actually does is
+       * looked up from the data files through src/modifiers.js. The save
+       * holds decisions, never consequences, so the whole game can be
+       * re-balanced without invalidating a single save. */
+
+      /* Completed node ids, the research queue (ids, in order) and how many
+       * research points the node at the head of the queue has accumulated. */
+      tech: {
+        completed: [],
+        queue: [],
+        progress: 0,
+      },
+
+      /* `pool` is who is available to hire right now; `hired` is who works
+       * for you. A governor also carries `regionId` (null = unassigned and
+       * still drawing a salary, which is deliberately allowed — an idle
+       * appointee should feel like waste, not be impossible). */
+      appointees: {
+        pool: [],
+        hired: [],
+        nextId: 1,
+        lastRefreshDay: 0,
+        /* The opening pool is drawn by the sim (it owns the RNG), not here.
+         * This flag is what stops it being re-drawn every time the game is
+         * loaded — or, worse, refilled the moment a player hires everyone. */
+        seeded: false,
+      },
+
+      /* One option per category, always. `changedOn` is the day each category
+       * was last switched, for the cooldown. */
+      policies: {
+        active: Mandate.POLICIES.defaults(),
+        changedOn: {},
+      },
+
+      /* Seeded RNG state. Every random draw in the game (currently only the
+       * candidate pool) steps this, so a save reloads into the same future
+       * rather than a different one — and a balance run is reproducible. */
+      rngSeed: (Date.now() >>> 0) || 1,
+
+      /* Bumped by the sim whenever tech, appointees or policies change.
+       * src/modifiers.js caches its table against this rather than rebuilding
+       * it for every region on every tick. */
+      modVersion: 1,
+
       /* Per-tick derived totals, recomputed by the sim. Cached here so the UI
        * can just read them instead of recalculating during render. */
       derived: {
@@ -90,6 +137,14 @@
         nationalStability: 0,
         nationalDevelopment: 0,
         unstableRegions: 0,
+        /* Phase 3. Salaries are billed WITH the upkeep bill, so an
+         * over-staffed government goes bankrupt exactly like an over-built
+         * one; `upkeepPerDay` above includes this figure, and the Ministry
+         * screen shows it broken out. */
+        salaryPerDay: 0,
+        researchPerDay: 0,
+        ministerSlots: 0,
+        governorSlots: 0,
         /* True on any day the bill went unpaid. The UI turns the Treasury
          * chip red on it, because austerity is the one state the player must
          * never discover late. */
@@ -103,6 +158,8 @@
         /* Days on which at least one region sat below the unrest line. The
          * run summary reads this as "how much of your term was a crisis". */
         daysInUnrest: 0,
+        techCompleted: 0,
+        appointeesHired: 0,
       },
     };
   };
@@ -200,6 +257,26 @@
       save.stats = save.stats || {};
       if (typeof save.stats.daysInUnrest !== 'number') save.stats.daysInUnrest = 0;
       save.schemaVersion = 2;
+    }
+
+    /* v2 -> v3 (Phase 3): tech, appointees and policies arrive. A v2 save is a
+     * government that has researched nothing, hired nobody and is running the
+     * default policy in every category — which is exactly what a fresh block
+     * describes, so there is nothing to translate, only to add. The RNG seed
+     * has to be invented; any value is as truthful as any other. */
+    if (save.schemaVersion === 2) {
+      save.tech = { completed: [], queue: [], progress: 0 };
+      save.appointees = {
+        pool: [], hired: [], nextId: 1,
+        lastRefreshDay: save.day || 0, seeded: false,
+      };
+      save.policies = { active: Mandate.POLICIES.defaults(), changedOn: {} };
+      save.rngSeed = (Date.now() >>> 0) || 1;
+      save.modVersion = 1;
+      save.stats = save.stats || {};
+      save.stats.techCompleted = 0;
+      save.stats.appointeesHired = 0;
+      save.schemaVersion = 3;
     }
 
     if (save.schemaVersion !== State.SCHEMA_VERSION) {

@@ -146,9 +146,14 @@ those arrive without a data migration.
 
 ### 2.3 Tech / policy tree
 
+*Live as of Phase 3 — `data/tech.js`, twenty nodes.*
+
 Four branches: **Economy, Infrastructure, Governance, Security.** Nodes cost
 Political Capital *plus research time*, so they compete with each other for the
-clock as well as the currency.
+clock as well as the currency. The whole tree is ~4,900 research days against a
+term of ~3,300, so nobody finishes it: a run is a choice of direction.
+Political Capital is charged when a node is **queued**, not when it starts, so
+a four-deep queue is four nodes' worth of standing already spent.
 
 **Design rule for mid-tier nodes: they must CHANGE HOW SYSTEMS INTERACT, not
 give flat percentages.** A node that says "+10% treasury" is filler. A node
@@ -160,7 +165,29 @@ that says:
 …changes what the player does for the rest of the run. Flat bonuses belong only
 at leaf nodes, if at all.
 
+Five nodes carry that weight today:
+
+| Node | What it rewrites |
+| --- | --- |
+| **Federal Devolution** | Regions close the gap to their natural level 2.5× faster — so Public Works washes out almost at once and Invest pays back in weeks. You stop patching and start building, and accept a 12% smaller economy for it. |
+| **Deficit Financing** | Austerity stops eating development and stability and starts burning Mandate. Bankruptcy changes from a death spiral into a deliberate, expensive way to buy a crisis some time. |
+| **Martial Doctrine** | A garrisoned region stops passing unrest to its neighbours. Troops change the *shape* of a crisis, not just its size — and cost Mandate every day they stay. |
+| **Trunk Network** | A region's development lifts every region it borders. Until this exists the adjacency map can only ever hurt you; after it, *where* you build matters as much as how much. |
+| **Technocratic Ministries** | Political Capital accrues from national development instead of from stability above the pivot — the only way out of a run where the country is permanently too unstable to earn the currency that would fix it. |
+
+**How a node reaches the simulation.** Nodes never contain logic. They declare
+`mods` (numbers) and `flags` (switches); `src/modifiers.js` sums every tech
+node, active policy and hired appointee into one table, and `src/sim.js` reads
+keys out of it. Keys ending in `.mult` multiply, everything else adds. Nothing
+in the sim asks "does the player have tech X?", which is what stops the
+simulation filling up with one branch per node. `src/modifiers.js` documents
+every key the sim reads and has a `Mods.audit()` that names any key the data
+declares and the sim ignores — a typo in a node's `mods` is otherwise
+completely invisible.
+
 ### 2.4 Appointees
+
+*Live as of Phase 3 — `data/traits.js` and `data/appointees.js`.*
 
 Hireable ministers and governors, assigned to a region or a ministry. Each has:
 
@@ -172,6 +199,23 @@ Hireable ministers and governors, assigned to a region or a ministry. Each has:
 **Slots are limited**, so appointment is a continuing reassignment problem
 rather than a one-time purchase. The right minister in the wrong region should
 feel like a waste.
+
+Two rules do most of the work:
+
+- **Role decides scope.** A minister's traits apply nationally; a governor's
+  apply *only in the region they are posted to*. That is the whole reason
+  posting is a decision — a Technocrat (+15% output) is worth a fortune in the
+  industrial core and almost nothing in a frontier region with 5 development.
+- **Drawbacks pay a negative salary.** A flawed candidate is genuinely cheap,
+  in both the hiring fee and the daily wage, so the pool can offer you someone
+  dangerous and affordable rather than simply someone worse.
+
+Candidates are *generated* — `data/appointees.js` holds names and titles, and
+the sim rolls a role, a perk and (55% of the time) a drawback through a seeded
+RNG stored in the save. A reload therefore cannot re-roll the pool.
+
+Salaries are billed **with the upkeep bill**, so an over-staffed government
+goes bankrupt through exactly the same austerity rule as an over-built one.
 
 ### 2.5 Leaders
 
@@ -225,7 +269,15 @@ does it (Rebel Inc., Plague Inc. and most mobile 4X games).
   shifts green → amber → red at the thresholds in `BALANCE.mandate`.
 - **Bottom-left "Ministry"** and **bottom-right "Regions"** open the
   full-screen management overlay (tabs across the top: Tech, Appointees,
-  Policies, Events, Regions).
+  Policies, Events, Regions). Four of the five are live; Events is Phase 4's.
+  `src/ui/overlay.js` is only the shell — it knows about tabs, opening,
+  closing and the render cadence, and calls one function per tab. The Phase 3
+  screens live in `src/ui/ministry.js`, which is why the shell has stayed the
+  same size across three phases.
+  These tabs are rebuilt when the in-game **day** changes rather than every
+  frame, and the rebuild preserves `scrollTop` — the tech tree is taller than a
+  landscape phone, so a rebuild that scrolled you back to the top would make
+  the tab unusable while the clock was running.
 - **Tapping a region** slides a detail panel in from the right edge. A side
   panel is the right shape in landscape — it leaves most of the country visible
   while you act on one region, which a bottom sheet would not.
@@ -252,6 +304,9 @@ sessions. They are not stylistic preferences.
 ```
 data/*.js   →   state object   →   src/sim.js tick()   →   src/ui/* render()
 (authored)      (plain JSON)       (pure logic)            (reads, draws)
+                                        ↑
+                               src/modifiers.js
+                     (tech + policies + appointees → one table)
 ```
 
 - The entire game world is **one plain, serialisable JavaScript object**.
@@ -376,7 +431,10 @@ Full checklist in `TODO.md`. In short:
 2. **Phase 2 (done)** — full three-resource economy with real sinks, natural
    stability and drift, unrest spreading to neighbours, garrisons, austerity,
    approval-slowed Mandate decay, and an end-of-term summary.
-3. **Phase 3** — tech/policy tree, appointee hiring and assignment.
+3. **Phase 3 (done)** — the twenty-node tech tree and research queue, the
+   modifier layer that lets tech, appointees and policies all change the
+   simulation without touching it, appointee hiring/posting, and standing
+   policies.
 4. **Phase 4** — leader selection, random events, run summary and scoring.
 5. **Phase 5** — balance tuning, polish, save/load hardening.
 6. **Phase 6** — Capacitor wrap, signed AAB pipeline, Play Store prep.
@@ -397,5 +455,12 @@ Full checklist in `TODO.md`. In short:
   markup per frame.
 - Bump `State.SCHEMA_VERSION` and add a migration step whenever the state shape
   changes.
+- A new system that changes the simulation should declare `mods`/`flags` and go
+  through `src/modifiers.js`, not add a branch to `src/sim.js`. If it needs a
+  key the sim doesn't read yet, add the key to `Mods.READ_KEYS` in the same
+  commit as the line that reads it.
+- Any mutation of tech, appointees or policies must bump `state.modVersion`
+  (the sim's `touch()`), or the modifier cache will keep serving the old
+  government.
 - Append a `DEVLOG.md` entry at the end of every session.
 - Record every balance change in `BALANCE.md` with the reasoning.

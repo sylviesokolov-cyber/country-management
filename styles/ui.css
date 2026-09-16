@@ -811,3 +811,399 @@
 }
 
 .veil__restart:active { filter: brightness(0.9); }
+
+/* ===========================================================================
+   PHASE 3 — THE MANAGEMENT SCREENS (Tech, Appointees, Policies)
+   ---------------------------------------------------------------------------
+   All three live inside `.overlay__body`, which is already a scrollable
+   full-screen surface, so none of them owns any layout above itself.
+
+   The one layout rule that matters here is the column grid: in landscape
+   there is plenty of WIDTH and almost no height, so the tech branches and the
+   appointee cards flow into as many columns as fit and scroll vertically only
+   when they genuinely have to. `auto-fit` + `minmax` does that with no
+   breakpoints and no JavaScript, and it degrades to one column on the
+   narrowest phone without a media query.
+   ======================================================================== */
+
+/* --- research status bar ------------------------------------------------ */
+.research-status {
+  border: 1px solid var(--c-line);
+  border-radius: var(--r-md);
+  background: var(--c-surface-2);
+  padding: var(--s-3);
+  margin-bottom: var(--s-3);
+}
+
+.research-status__head {
+  display: flex;
+  align-items: baseline;
+  gap: var(--s-2);
+  margin-bottom: var(--s-2);
+}
+
+.research-status__label {
+  font-size: var(--f-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--c-text-faint);
+}
+
+.research-status__name { font-size: var(--f-md); font-weight: 600; }
+
+.research-status__idle { font-size: var(--f-sm); color: var(--c-text-dim); }
+
+.research-status__rate {
+  margin-top: var(--s-2);
+  font-family: var(--font-num);
+  font-size: var(--f-xs);
+  color: var(--c-text-dim);
+}
+
+.bar__fill--research { background: var(--c-capital); }
+
+/* Queued-behind nodes. Tapping one cancels it, so they read as removable
+   chips rather than as labels. */
+.queue-chips {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s-1);
+  margin-top: var(--s-2);
+}
+
+.queue-chips__label {
+  font-size: var(--f-xs);
+  color: var(--c-text-faint);
+  margin-right: var(--s-1);
+}
+
+.queue-chip {
+  font: inherit;
+  font-size: var(--f-xs);
+  color: var(--c-text-dim);
+  background: var(--c-surface-3);
+  border: 1px solid var(--c-line);
+  border-radius: var(--r-sm);
+  padding: var(--s-1) var(--s-2);
+  cursor: pointer;
+}
+
+.queue-chip::after { content: ' \00d7'; color: var(--c-text-faint); }
+.queue-chip:active { background: var(--c-line); }
+
+/* --- the tech tree ------------------------------------------------------ */
+.branch-grid {
+  display: grid;
+  /* 180px is chosen so all FOUR branches fit side by side on a 844px-wide
+     landscape phone — the tree reads as four columns, which is what makes it
+     a tree rather than a list. On a 667px phone it falls back to three and
+     Security wraps below, which is the right thing to lose first. */
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: var(--s-3);
+}
+
+.branch { display: flex; flex-direction: column; gap: var(--s-2); }
+
+.branch__head {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  font-size: var(--f-sm);
+  font-weight: 600;
+  color: var(--c-text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  padding-bottom: var(--s-1);
+  border-bottom: 1px solid var(--c-line);
+}
+
+.branch__icon { font-size: var(--f-md); line-height: 1; }
+
+.tech {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: var(--s-1) var(--s-2);
+  align-items: start;
+  width: 100%;
+  min-height: var(--tap);
+  text-align: left;
+  font: inherit;
+  color: var(--c-text);
+  background: var(--c-surface);
+  border: 1px solid var(--c-line);
+  border-left: 3px solid var(--c-line-strong);
+  border-radius: var(--r-sm);
+  padding: var(--s-2);
+  cursor: pointer;
+}
+
+.tech:active { background: var(--c-surface-3); }
+.tech[disabled] { cursor: default; }
+
+/* The left edge carries the status, so a glance down a branch reads as a
+   progress bar: solid = done, accent = in progress, dim = out of reach. */
+.tech[data-status='done']        { border-left-color: var(--c-band-secure); opacity: 0.75; }
+.tech[data-status='researching'] { border-left-color: var(--c-capital); background: var(--c-surface-2); }
+.tech[data-status='queued']      { border-left-color: var(--c-capital); opacity: 0.85; }
+.tech[data-status='available']   { border-left-color: var(--c-accent); }
+.tech[data-status='locked']      { opacity: 0.45; }
+
+.tech__main { min-width: 0; }
+.tech__name { font-size: var(--f-sm); font-weight: 600; }
+
+.tech__blurb {
+  font-size: var(--f-xs);
+  line-height: 1.3;
+  color: var(--c-text-dim);
+  margin-top: 2px;
+}
+
+.tech__side {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+  font-family: var(--font-num);
+  font-size: var(--f-xs);
+}
+
+.tech__cost { color: var(--c-capital); }
+.tech__days { color: var(--c-text-faint); }
+.tech__tick { color: var(--c-band-secure); font-size: var(--f-md); }
+
+.tech__reason {
+  grid-column: 1 / -1;
+  font-size: var(--f-xs);
+  color: var(--c-text-faint);
+}
+
+/* --- appointees --------------------------------------------------------- */
+.slot-head {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: var(--s-2);
+  margin: var(--s-4) 0 var(--s-2);
+  font-size: var(--f-md);
+  color: var(--c-text);
+}
+
+.slot-head:first-child { margin-top: 0; }
+
+.slot-head__count {
+  font-family: var(--font-num);
+  font-size: var(--f-xs);
+  color: var(--c-manpower);
+}
+
+/* Full is not an error, but it is the reason the Hire buttons are dead, so
+   it has to be findable without reading every button. */
+.slot-head__count[data-full='true'] { color: var(--c-band-strained); }
+
+.slot-head__scope {
+  font-size: var(--f-xs);
+  font-weight: 400;
+  color: var(--c-text-faint);
+}
+
+.person-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: var(--s-2);
+}
+
+.person {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+  background: var(--c-surface);
+  border: 1px solid var(--c-line);
+  border-radius: var(--r-md);
+  padding: var(--s-3);
+}
+
+.person__title {
+  font-size: var(--f-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--c-text-faint);
+}
+
+.person__name { font-size: var(--f-sm); font-weight: 600; }
+
+.person__traits { display: flex; flex-wrap: wrap; gap: var(--s-1); }
+
+.trait {
+  font-size: var(--f-xs);
+  padding: 2px var(--s-2);
+  border-radius: 999px;
+  background: rgba(88, 166, 255, 0.14);
+  color: var(--c-accent);
+  border: 1px solid rgba(88, 166, 255, 0.3);
+}
+
+.trait[data-drawback='true'] {
+  background: rgba(240, 86, 62, 0.13);
+  color: var(--c-danger);
+  border-color: rgba(240, 86, 62, 0.32);
+}
+
+.person__effect {
+  font-size: var(--f-xs);
+  line-height: 1.3;
+  color: var(--c-text-dim);
+}
+
+.person__effect[data-drawback='true'] { color: var(--c-band-unrest); }
+
+.person__foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s-2);
+  margin-top: auto;
+  padding-top: var(--s-2);
+  border-top: 1px solid var(--c-line);
+}
+
+.person__salary {
+  font-family: var(--font-num);
+  font-size: var(--f-xs);
+  color: var(--c-treasury);
+}
+
+.person__fee {
+  font-family: var(--font-num);
+  font-size: var(--f-xs);
+  color: var(--c-text-faint);
+}
+
+/* A native select: one tap opens the platform picker, and it stays keyboard
+   and screen-reader accessible without any work from us. */
+.posting {
+  flex: 1 1 120px;
+  min-width: 0;
+  min-height: 32px;
+  font: inherit;
+  font-size: var(--f-xs);
+  color: var(--c-text);
+  background: var(--c-surface-2);
+  border: 1px solid var(--c-line);
+  border-radius: var(--r-sm);
+  padding: var(--s-1) var(--s-2);
+}
+
+.mini-btn {
+  margin-left: auto;
+  min-height: 32px;
+  font: inherit;
+  font-size: var(--f-xs);
+  font-weight: 600;
+  color: var(--c-text);
+  background: var(--c-surface-3);
+  border: 1px solid var(--c-line-strong);
+  border-radius: var(--r-sm);
+  padding: var(--s-1) var(--s-3);
+  cursor: pointer;
+}
+
+.mini-btn:active { background: var(--c-line); }
+.mini-btn[disabled] { opacity: 0.4; cursor: default; }
+.mini-btn--danger { color: var(--c-band-unrest); }
+
+/* --- policies ----------------------------------------------------------- */
+.policy { margin-bottom: var(--s-4); }
+
+.policy__head {
+  display: flex;
+  align-items: baseline;
+  gap: var(--s-2);
+}
+
+.policy__cooldown {
+  font-size: var(--f-xs);
+  font-family: var(--font-num);
+  color: var(--c-band-strained);
+}
+
+.policy__blurb {
+  margin: 0 0 var(--s-2);
+  font-size: var(--f-xs);
+  color: var(--c-text-dim);
+}
+
+.policy__options {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: var(--s-2);
+}
+
+.policy-option {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-1);
+  min-height: var(--tap);
+  text-align: left;
+  font: inherit;
+  color: var(--c-text);
+  background: var(--c-surface);
+  border: 1px solid var(--c-line);
+  border-radius: var(--r-sm);
+  padding: var(--s-2) var(--s-3);
+  cursor: pointer;
+}
+
+.policy-option:active { background: var(--c-surface-3); }
+
+/* The option in force is the only one that is BOTH highlighted and disabled,
+   which is the honest reading: you cannot enact what you are already doing. */
+.policy-option[aria-pressed='true'] {
+  border-color: var(--c-accent);
+  background: var(--c-surface-2);
+  opacity: 1;
+}
+
+.policy-option[disabled][aria-pressed='false'] { opacity: 0.45; cursor: default; }
+
+.policy-option__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--s-2);
+}
+
+.policy-option__label { font-size: var(--f-sm); font-weight: 600; }
+
+.policy-option__active {
+  font-size: var(--f-xs);
+  color: var(--c-accent);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.policy-option__cost {
+  font-family: var(--font-num);
+  font-size: var(--f-xs);
+  color: var(--c-capital);
+}
+
+.policy-option__blurb {
+  font-size: var(--f-xs);
+  line-height: 1.3;
+  color: var(--c-text-dim);
+}
+
+.policy-option__upkeep {
+  font-family: var(--font-num);
+  font-size: var(--f-xs);
+  color: var(--c-band-unrest);
+}
+
+.policy-option__reason { font-size: var(--f-xs); color: var(--c-text-faint); }
+
+/* --- region panel: who governs here ------------------------------------- */
+/* Same shape as the garrison note, different accent: both answer "what is
+   attached to this region that I am paying for?". */
+.garrison-note--governor { color: var(--c-text-dim); }
+.garrison-note--governor .garrison-note__icon { color: var(--c-accent); }

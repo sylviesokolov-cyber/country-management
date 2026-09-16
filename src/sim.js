@@ -27,12 +27,28 @@
  *   5. Mandate decays: a baseline, plus pressure from every region in unrest.
  *   6. Derived totals are cached for the UI.
  *   7. The lose condition is checked.
+ *
+ * PHASE 3 slots three more things into that order, and where they go matters:
+ *
+ *   1b. Appointee SALARIES are added to the upkeep bill, before it is
+ *       charged — so an over-staffed government goes bankrupt exactly like an
+ *       over-built one, through the same austerity rule.
+ *   3b. Standing POLICIES bill their ongoing cost in Political Capital and
+ *       Mandate (their Treasury cost is already in the bill above).
+ *   3c. RESEARCH advances, and the candidate pool refreshes on its timer.
+ *       Research is spent time, so it must not depend on whether the player
+ *       could pay for anything today.
+ *
+ * Nothing in this file asks "does the player have tech X?". Tech, appointees
+ * and policies all arrive as one table of numbers from src/modifiers.js, and
+ * the sim only ever reads keys out of it. See that file for the contract.
  * ========================================================================== */
 (function (Mandate) {
   'use strict';
 
   var Sim = {};
   var clamp = Mandate.Util.clamp;
+  var Mods = Mandate.Mods;
 
   /* ------------------------------------------------------------------------
    * DERIVED VALUES
@@ -47,9 +63,11 @@
    * you actually collect. A rich province in crisis pays almost nothing —
    * that is the central economic tension of the game.
    */
-  Sim.regionOutput = function (region) {
+  Sim.regionOutput = function (state, region) {
     var o = Mandate.BALANCE.region.output;
-    return (o.base + region.development * o.perDevelopment) * Sim.stabilityFactor(region);
+    return (o.base + region.development * o.perDevelopment) *
+      Sim.stabilityFactor(region) *
+      Mods.mult(Mods.forRegion(state, region.id), 'output.mult');
   };
 
   /**
@@ -68,10 +86,26 @@
    * This is the sink that stops Treasury piling up: it scales with everything
    * the player has built, so a bigger country is a more expensive one.
    */
-  Sim.regionUpkeep = function (region) {
+  Sim.regionUpkeep = function (state, region) {
     var R = Mandate.BALANCE.region;
-    return region.development * R.upkeep.treasuryPerDevelopmentPerDay +
-      (region.garrisoned ? R.garrison.treasuryUpkeepPerDay : 0);
+    var m = Mods.forRegion(state, region.id);
+    return region.development * R.upkeep.treasuryPerDevelopmentPerDay *
+        Mods.mult(m, 'upkeep.mult') +
+      (region.garrisoned
+        ? R.garrison.treasuryUpkeepPerDay * Mods.mult(m, 'garrisonUpkeep.mult')
+        : 0);
+  };
+
+  /**
+   * What the government payroll costs per day.
+   * Billed as part of the upkeep bill rather than separately, so there is
+   * exactly one way to run out of money and exactly one austerity rule.
+   */
+  Sim.salaryPerDay = function (state) {
+    var total = 0;
+    var hired = state.appointees.hired;
+    for (var i = 0; i < hired.length; i++) total += hired[i].salary;
+    return total * Mods.mult(Mods.of(state), 'salary.mult');
   };
 
   /** Which colour band a region falls into (drives the map fill). */
@@ -126,13 +160,30 @@
   /** How many of this region's neighbours are currently below the unrest line. */
   Sim.unstableNeighbours = function (state, region) {
     var ids = Sim.neighboursOf(region.id);
+    /* Martial Doctrine: a garrisoned region is a firewall. Troops stop unrest
+     * CROSSING them, which changes the shape of a crisis rather than its
+     * size — a garrison on the right region seals off a whole frontier. */
+    var firewall = Mods.on(Mods.of(state), 'garrisonBlocksContagion');
     var count = 0;
     for (var i = 0; i < ids.length; i++) {
       var neighbour = Mandate.State.regionById(state, ids[i]);
-      if (neighbour && Sim.isUnstable(neighbour)) count += 1;
+      if (!neighbour || !Sim.isUnstable(neighbour)) continue;
+      if (firewall && neighbour.garrisoned) continue;
+      count += 1;
     }
     return count;
   };
+
+  /** Total development in the regions bordering this one (Trunk Network). */
+  function neighbourDevelopment(state, region) {
+    var ids = Sim.neighboursOf(region.id);
+    var total = 0;
+    for (var i = 0; i < ids.length; i++) {
+      var neighbour = Mandate.State.regionById(state, ids[i]);
+      if (neighbour) total += neighbour.development;
+    }
+    return total;
+  }
 
   /* ------------------------------------------------------------------------
    * DRIFT — what happens to a region when you are not looking at it.
@@ -158,11 +209,25 @@
   Sim.naturalStability = function (state, region, shortfallFraction) {
     var R = Mandate.BALANCE.region;
     var N = R.naturalStability;
-    var level = N.base +
-      region.development * N.perDevelopment +
-      (region.garrisoned ? N.garrisonBonus : 0) +
-      Sim.unstableNeighbours(state, region) * N.perUnstableNeighbour +
-      (shortfallFraction || 0) * N.austerityPenalty;
+    var m = Mods.forRegion(state, region.id);
+
+    /* Deficit Financing moves austerity off the country and onto the clock:
+     * the unpaid bill stops eating stability and development, and starts
+     * costing Mandate instead (see Sim.mandateLossPerDay). */
+    var austerity = Mods.on(Mods.of(state), 'austerityHitsMandate')
+      ? 0
+      : (shortfallFraction || 0) * N.austerityPenalty;
+
+    var level = N.base + Mods.add(m, 'natural.base') +
+      region.development * N.perDevelopment *
+        Mods.mult(m, 'natural.perDevelopment.mult') +
+      (region.garrisoned ? N.garrisonBonus + Mods.add(m, 'garrisonBonus.add') : 0) +
+      Sim.unstableNeighbours(state, region) * N.perUnstableNeighbour *
+        Mods.mult(m, 'neighbourUnrest.mult') +
+      /* Trunk Network: what your NEIGHBOURS have built now props this region
+       * up. Until this exists the adjacency map can only ever hurt you. */
+      neighbourDevelopment(state, region) * Mods.add(m, 'spillover.perDevelopment') +
+      austerity;
     return clamp(level, R.min, R.max);
   };
 
@@ -175,12 +240,17 @@
   Sim.stabilityTrend = function (state, region, shortfallFraction) {
     var R = Mandate.BALANCE.region;
     return (Sim.naturalStability(state, region, shortfallFraction) - region.stability) *
-      R.reversionPerDay;
+      R.reversionPerDay * Mods.mult(Mods.forRegion(state, region.id), 'reversion.mult');
   };
 
-  /** Development change per day. Only austerity takes it away. */
-  Sim.developmentTrend = function (region, shortfallFraction) {
+  /**
+   * Development change per day. Only austerity takes it away — and not even
+   * that under Deficit Financing, which redirects the whole austerity penalty
+   * to Mandate.
+   */
+  Sim.developmentTrend = function (state, region, shortfallFraction) {
     var R = Mandate.BALANCE.region;
+    if (Mods.on(Mods.of(state), 'austerityHitsMandate')) return -R.developmentDecayPerDay;
     return -R.developmentDecayPerDay -
       (shortfallFraction || 0) * R.upkeep.unpaidDevelopmentDecayPerDay;
   };
@@ -210,8 +280,18 @@
    */
   Sim.politicalCapitalPerDay = function (state) {
     var P = Mandate.BALANCE.resources.politicalCapital;
-    var rate = P.perDayBase +
-      (averageStability(state) - P.pivotStability) * P.perStabilityPointPerDay;
+    var m = Mods.of(state);
+
+    /* Technocratic Ministries rewrites where standing comes from: results
+     * instead of mood. That is the only way out of a run where the country is
+     * permanently below the pivot and therefore permanently broke in the one
+     * currency that could fix it. */
+    var earned = Mods.on(m, 'pcFromDevelopment')
+      ? totalDevelopment(state) * P.perDevelopmentPerDay
+      : (averageStability(state) - P.pivotStability) * P.perStabilityPointPerDay;
+
+    var rate = (P.perDayBase + earned + Mods.add(m, 'pc.perDay.add')) *
+      Mods.mult(m, 'pc.perDay.mult');
     return rate > 0 ? rate : 0;
   };
 
@@ -228,13 +308,38 @@
       total += (M.perRegionPerDay + region.development * M.perDevelopmentPerDay) *
         Sim.stabilityFactor(region);
     }
-    return total;
+    return total * Mods.mult(Mods.of(state), 'manpower.mult');
   };
 
   /** Manpower is people, not savings: a bigger country can hold more of them. */
   Sim.manpowerCap = function (state) {
     var M = Mandate.BALANCE.resources.manpower;
-    return M.capBase + totalDevelopment(state) * M.capPerDevelopment;
+    return (M.capBase + totalDevelopment(state) * M.capPerDevelopment) *
+      Mods.mult(Mods.of(state), 'manpowerCap.mult');
+  };
+
+  /** Research points banked per day by the queue. */
+  Sim.researchPerDay = function (state) {
+    return Mandate.BALANCE.research.pointsPerDay *
+      Mods.mult(Mods.of(state), 'research.mult');
+  };
+
+  /** How many ministers / governors this government may hold at once. */
+  Sim.slotsFor = function (state, role) {
+    var A = Mandate.BALANCE.appointees;
+    var m = Mods.of(state);
+    return role === 'minister'
+      ? A.ministerSlots + Mods.add(m, 'ministerSlots.add')
+      : A.governorSlots + Mods.add(m, 'governorSlots.add');
+  };
+
+  /** How many of a role are currently employed. */
+  Sim.hiredCount = function (state, role) {
+    var count = 0;
+    for (var i = 0; i < state.appointees.hired.length; i++) {
+      if (state.appointees.hired[i].role === role) count += 1;
+    }
+    return count;
   };
 
   /**
@@ -267,7 +372,11 @@
     var approval = averageStability(state) - M.approvalPivot;
     var baseline = M.decayPerDay -
       (approval > 0 ? approval * M.decayReliefPerStabilityPoint : 0);
-    return baseline < M.decayFloorPerDay ? M.decayFloorPerDay : baseline;
+    if (baseline < M.decayFloorPerDay) baseline = M.decayFloorPerDay;
+    /* Policies and appointees scale the BASELINE only, never the unrest
+     * pressure below: a Heavy Levy makes the honeymoon shorter, it does not
+     * make a burning province burn faster. */
+    return baseline * Mods.mult(Mods.of(state), 'mandateDecay.mult');
   };
 
   /**
@@ -275,18 +384,51 @@
    * the unrest line, a flat cost for having crossed it at all and a per-point
    * cost for how far below it has fallen.
    */
-  Sim.mandateLossPerDay = function (state) {
+  Sim.mandateLossPerDay = function (state, shortfallFraction) {
     var M = Mandate.BALANCE.mandate;
+    var m = Mods.of(state);
     var loss = Sim.mandateBaselinePerDay(state);
+    var perGarrison = Mods.add(m, 'mandate.perGarrisonPerDay');
+
     for (var i = 0; i < state.regions.length; i++) {
       var region = state.regions[i];
       if (region.stability < M.unstableBelow) {
         loss += M.decayPerUnstableRegionPerDay +
           (M.unstableBelow - region.stability) * M.decayPerUnstablePointPerDay;
       }
+      /* Martial Doctrine: soldiers in the streets cost legitimacy for every
+       * day they stay. Nothing charges this until that node is researched. */
+      if (region.garrisoned) loss += perGarrison;
+    }
+
+    /* Standing policies with an ongoing Mandate price (censorship). */
+    loss += policyUpkeep(state, 'mandate');
+
+    /* Deficit Financing: the unpaid share of the bill lands here instead of
+     * on the country. */
+    if (shortfallFraction && Mods.on(m, 'austerityHitsMandate')) {
+      loss += shortfallFraction * M.austerityPerShortfallPerDay;
     }
     return loss;
   };
+
+  /**
+   * What the currently active policies cost per day in one resource.
+   * Treasury costs are folded into the upkeep bill; Political Capital and
+   * Mandate costs are charged where those resources are handled.
+   */
+  function policyUpkeep(state, resourceKey) {
+    var total = 0;
+    var active = state.policies.active;
+    Object.keys(active).forEach(function (categoryId) {
+      var option = Mandate.POLICIES.option(categoryId, active[categoryId]);
+      if (option && option.upkeep && option.upkeep[resourceKey]) {
+        total += option.upkeep[resourceKey];
+      }
+    });
+    return total;
+  }
+  Sim.policyUpkeep = policyUpkeep;
 
   /* ------------------------------------------------------------------------
    * DERIVED CACHE
@@ -303,14 +445,20 @@
 
     for (var i = 0; i < state.regions.length; i++) {
       var region = state.regions[i];
-      region.output = Sim.regionOutput(region);
-      region.upkeep = Sim.regionUpkeep(region);
+      region.output = Sim.regionOutput(state, region);
+      region.upkeep = Sim.regionUpkeep(state, region);
       nationalOutput += region.output;
       upkeep += region.upkeep;
       if (Sim.isUnstable(region)) unstable += 1;
     }
 
-    var gross = nationalOutput * B.region.treasuryPerOutputPerDay;
+    /* The payroll and any standing policy with a daily price are part of the
+     * same bill as bricks and troops — one bill, one austerity rule. */
+    var salary = Sim.salaryPerDay(state);
+    upkeep += salary + policyUpkeep(state, 'treasury');
+
+    var gross = nationalOutput * B.region.treasuryPerOutputPerDay *
+      Mods.mult(Mods.of(state), 'treasury.mult');
 
     /* "Will tomorrow's bill bounce?" — a forecast, not a record of today, so
      * the warning reaches the player while they can still act on it. */
@@ -334,7 +482,11 @@
     state.derived.politicalCapitalPerDay = Sim.politicalCapitalPerDay(state);
     state.derived.manpowerPerDay = Sim.manpowerPerDay(state);
     state.derived.manpowerCap = Sim.manpowerCap(state);
-    state.derived.mandatePerDay = -Sim.mandateLossPerDay(state);
+    state.derived.mandatePerDay = -Sim.mandateLossPerDay(state, shortfallFraction);
+    state.derived.salaryPerDay = salary;
+    state.derived.researchPerDay = Sim.researchPerDay(state);
+    state.derived.ministerSlots = Sim.slotsFor(state, 'minister');
+    state.derived.governorSlots = Sim.slotsFor(state, 'governor');
     state.derived.nationalStability = averageStability(state);
     state.derived.nationalDevelopment = totalDevelopment(state);
     state.derived.unstableRegions = unstable;
@@ -348,6 +500,15 @@
    * cost the player a day on every reload.
    */
   Sim.refresh = function (state) {
+    /* The opening slate of candidates is drawn here rather than in
+     * State.createNewGame, because the RNG lives in the sim. `seeded` is what
+     * stops a reload re-rolling the pool the player is looking at. */
+    if (!state.appointees.seeded) {
+      state.appointees.seeded = true;
+      for (var i = 0; i < Mandate.BALANCE.appointees.initialPool; i++) {
+        state.appointees.pool.push(Sim.drawCandidate(state));
+      }
+    }
     recomputeDerived(state);
   };
 
@@ -369,14 +530,18 @@
     var nationalOutput = 0;
     var upkeep = 0;
     for (i = 0; i < state.regions.length; i++) {
-      state.regions[i].output = Sim.regionOutput(state.regions[i]);
-      state.regions[i].upkeep = Sim.regionUpkeep(state.regions[i]);
+      state.regions[i].output = Sim.regionOutput(state, state.regions[i]);
+      state.regions[i].upkeep = Sim.regionUpkeep(state, state.regions[i]);
       nationalOutput += state.regions[i].output;
       upkeep += state.regions[i].upkeep;
     }
 
+    /* --- 1b. The payroll and any standing policy bill ------------------- */
+    upkeep += Sim.salaryPerDay(state) + policyUpkeep(state, 'treasury');
+
     /* --- 2. Treasury in, upkeep out ------------------------------------- */
-    var gross = nationalOutput * R.treasuryPerOutputPerDay;
+    var gross = nationalOutput * R.treasuryPerOutputPerDay *
+      Mods.mult(Mods.of(state), 'treasury.mult');
     state.resources.treasury += gross;
     state.stats.treasuryEarned += gross;
 
@@ -389,9 +554,17 @@
     var shortfallFraction = upkeep > 0 ? (upkeep - paid) / upkeep : 0;
 
     /* --- 3. Political Capital and Manpower ------------------------------ */
-    state.resources.politicalCapital += Sim.politicalCapitalPerDay(state);
+    state.resources.politicalCapital +=
+      Sim.politicalCapitalPerDay(state) - policyUpkeep(state, 'politicalCapital');
     state.resources.manpower += Sim.manpowerPerDay(state);
     clampResources(state);
+
+    /* --- 3c. Research, and the hiring pool ------------------------------ */
+    /* Deliberately unconditional: research is spent TIME, and time passes
+     * whether or not the Treasury balanced today. A bankrupt government still
+     * finishes the road survey it started. */
+    advanceResearch(state);
+    refreshPool(state);
 
     /* --- 4. Drift ------------------------------------------------------- */
     /* Computed for every region FIRST, against the same snapshot, then
@@ -401,7 +574,7 @@
     var developmentDeltas = [];
     for (i = 0; i < state.regions.length; i++) {
       stabilityDeltas.push(Sim.stabilityTrend(state, state.regions[i], shortfallFraction));
-      developmentDeltas.push(Sim.developmentTrend(state.regions[i], shortfallFraction));
+      developmentDeltas.push(Sim.developmentTrend(state, state.regions[i], shortfallFraction));
     }
     for (i = 0; i < state.regions.length; i++) {
       var region = state.regions[i];
@@ -414,7 +587,8 @@
      * unstable regions make it worse, and the worse they get the faster it
      * goes — which is what turns a neglected corner of the map into a run
      * that ends early. */
-    state.mandate = clamp(state.mandate - Sim.mandateLossPerDay(state), 0, B.mandate.max);
+    state.mandate = clamp(
+      state.mandate - Sim.mandateLossPerDay(state, shortfallFraction), 0, B.mandate.max);
 
     /* --- 6. Cache derived totals for the UI ----------------------------- */
     recomputeDerived(state);
@@ -445,6 +619,43 @@
   Sim.resourceLabel = function (key) { return LABELS[key] || key; };
 
   /**
+   * What this action costs ON THIS REGION, after tech, policies and whoever
+   * governs it. Returns a fresh object — never the balance data.
+   *
+   * Costs are ROUNDED, and that is not cosmetic: the panel shows what it
+   * charges, so a button reading "84 ¤" must take exactly 84. Anything below
+   * the rounding floor still costs 1, so a stack of discounts can never make
+   * an action free.
+   */
+  Sim.actionCost = function (state, actionId, regionId) {
+    var action = Mandate.BALANCE.actions[actionId];
+    var m = Mods.forRegion(state, regionId);
+    var mult = Mods.mult(m, 'cost.' + actionId + '.mult');
+    var out = {};
+    Object.keys(action.cost || {}).forEach(function (key) {
+      var value = Math.round(action.cost[key] * mult);
+      out[key] = value < 1 ? 1 : value;
+    });
+    return out;
+  };
+
+  /**
+   * What this action DOES on this region, after modifiers. Only the numeric
+   * effects scale; `garrisoned` is a fact, not a quantity.
+   */
+  Sim.actionEffect = function (state, actionId, regionId) {
+    var action = Mandate.BALANCE.actions[actionId];
+    var mult = Mods.mult(Mods.forRegion(state, regionId), 'effect.' + actionId + '.mult');
+    var effect = {};
+    Object.keys(action.effect || {}).forEach(function (key) {
+      effect[key] = typeof action.effect[key] === 'number'
+        ? action.effect[key] * mult
+        : action.effect[key];
+    });
+    return effect;
+  };
+
+  /**
    * Would this action actually change the region, or is every one of its
    * effects already clamped out?
    *
@@ -458,9 +669,8 @@
    * its own, so Withdraw stays available even when its stability penalty is
    * already clamped out at 0.
    */
-  function effectWouldApply(region, action) {
+  function effectWouldApply(region, effect) {
     var R = Mandate.BALANCE.region;
-    var effect = action.effect || {};
 
     if (typeof effect.garrisoned === 'boolean' &&
         !!region.garrisoned !== effect.garrisoned) return true;
@@ -476,9 +686,9 @@
   }
 
   /** The most specific "why is this greyed out?" we can give for a no-op. */
-  function noEffectReason(action) {
-    if (action.effect && action.effect.development) return 'Fully developed';
-    if (action.effect && action.effect.stability) return 'Fully stable';
+  function noEffectReason(effect) {
+    if (effect.development) return 'Fully developed';
+    if (effect.stability) return 'Fully stable';
     return 'No effect here';
   }
 
@@ -516,13 +726,15 @@
       }
     }
 
-    if (!effectWouldApply(region, action)) {
-      return { ok: false, reason: noEffectReason(action) };
+    var effect = Sim.actionEffect(state, actionId, regionId);
+    if (!effectWouldApply(region, effect)) {
+      return { ok: false, reason: noEffectReason(effect) };
     }
 
-    for (var key in action.cost) {
-      if (!Object.prototype.hasOwnProperty.call(action.cost, key)) continue;
-      if (state.resources[key] < action.cost[key]) {
+    var cost = Sim.actionCost(state, actionId, regionId);
+    for (var key in cost) {
+      if (!Object.prototype.hasOwnProperty.call(cost, key)) continue;
+      if (state.resources[key] < cost[key]) {
         return { ok: false, reason: 'Not enough ' + LABELS[key] };
       }
     }
@@ -543,10 +755,11 @@
     var B = Mandate.BALANCE;
     var key;
 
-    /* Pay */
-    for (key in action.cost) {
-      if (!Object.prototype.hasOwnProperty.call(action.cost, key)) continue;
-      state.resources[key] -= action.cost[key];
+    /* Pay — the MODIFIED price, which is the one the button quoted. */
+    var cost = Sim.actionCost(state, actionId, regionId);
+    for (key in cost) {
+      if (!Object.prototype.hasOwnProperty.call(cost, key)) continue;
+      state.resources[key] -= cost[key];
     }
     /* Refund (standing a garrison down returns part of the unit) */
     for (key in action.refund) {
@@ -558,16 +771,17 @@
     }
 
     /* Apply */
-    if (action.effect.development) {
+    var effect = Sim.actionEffect(state, actionId, regionId);
+    if (effect.development) {
       region.development = clamp(
-        region.development + action.effect.development, B.region.min, B.region.max);
+        region.development + effect.development, B.region.min, B.region.max);
     }
-    if (action.effect.stability) {
+    if (effect.stability) {
       region.stability = clamp(
-        region.stability + action.effect.stability, B.region.min, B.region.max);
+        region.stability + effect.stability, B.region.min, B.region.max);
     }
-    if (typeof action.effect.garrisoned === 'boolean') {
-      region.garrisoned = action.effect.garrisoned;
+    if (typeof effect.garrisoned === 'boolean') {
+      region.garrisoned = effect.garrisoned;
     }
 
     region.actionsTaken += 1;
@@ -581,6 +795,363 @@
      * after an Invest, the manpower cap, the treasury rate. Recompute now so
      * the HUD tells the truth on the very next frame rather than on the next
      * tick. */
+    recomputeDerived(state);
+    return true;
+  };
+
+  /* ========================================================================
+   * PHASE 3 — RESEARCH, APPOINTEES AND POLICIES
+   *
+   * Every mutation in this section ends with touch(state): that bumps
+   * `state.modVersion`, which is the only thing telling src/modifiers.js its
+   * cached table is stale. Forget it and a newly completed node does nothing
+   * until something else happens to invalidate the cache — the nastiest class
+   * of bug this architecture can produce, and the reason it is one function
+   * with one name rather than an assignment written out eight times.
+   * ====================================================================== */
+
+  function touch(state) {
+    state.modVersion = (state.modVersion || 0) + 1;
+  }
+
+  /* ------------------------------------------------------------------------
+   * SEEDED RANDOMNESS
+   * The candidate pool is the first thing in the game that rolls dice, and a
+   * save that re-rolled its pool on every load would let a player reload
+   * until a Technocrat turned up. So the seed lives IN the state and every
+   * draw advances it: the same save always has the same future, and a balance
+   * run is reproducible.
+   *
+   * mulberry32 — small, fast, and good enough for picking names out of a hat.
+   * ---------------------------------------------------------------------- */
+  Sim.random = function (state) {
+    state.rngSeed = (state.rngSeed + 0x6D2B79F5) >>> 0;
+    var t = state.rngSeed;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+
+  function pick(state, list) {
+    return list[Math.floor(Sim.random(state) * list.length)];
+  }
+
+  /* ------------------------------------------------------------------------
+   * RESEARCH
+   * The queue holds node ids. The head of the queue is what is being worked
+   * on; `progress` is how many research points it has banked.
+   *
+   * Political Capital is charged when a node is QUEUED, not when it starts.
+   * That is what makes the queue a commitment rather than a wish list: four
+   * queued nodes is four nodes' worth of standing already spent.
+   * ---------------------------------------------------------------------- */
+
+  /**
+   * Where a node stands, as one word. The Tech tab renders entirely from
+   * this, so what the player sees and what the sim will allow cannot drift.
+   */
+  Sim.techStatus = function (state, nodeId) {
+    if (state.tech.completed.indexOf(nodeId) !== -1) return 'done';
+    var at = state.tech.queue.indexOf(nodeId);
+    if (at === 0) return 'researching';
+    if (at > 0) return 'queued';
+    return Sim.prerequisitesMet(state, nodeId) ? 'available' : 'locked';
+  };
+
+  /**
+   * Prerequisites count as met by anything already COMPLETED or QUEUED, so a
+   * whole branch can be lined up in one sitting. Queueing a node whose
+   * prerequisite you then cancel is handled in Sim.cancelTech.
+   */
+  Sim.prerequisitesMet = function (state, nodeId) {
+    var node = Mandate.TECH.byId(nodeId);
+    if (!node) return false;
+    return (node.requires || []).every(function (id) {
+      return state.tech.completed.indexOf(id) !== -1 ||
+        state.tech.queue.indexOf(id) !== -1;
+    });
+  };
+
+  /** The un-met prerequisites of a node, by name, for the "locked" line. */
+  Sim.missingPrerequisites = function (state, nodeId) {
+    var node = Mandate.TECH.byId(nodeId);
+    if (!node) return [];
+    return (node.requires || []).filter(function (id) {
+      return state.tech.completed.indexOf(id) === -1 &&
+        state.tech.queue.indexOf(id) === -1;
+    }).map(function (id) {
+      var required = Mandate.TECH.byId(id);
+      return required ? required.name : id;
+    });
+  };
+
+  Sim.canQueueTech = function (state, nodeId) {
+    var node = Mandate.TECH.byId(nodeId);
+    if (!node) return { ok: false, reason: 'Unknown node' };
+    if (state.gameOver) return { ok: false, reason: 'Run over' };
+
+    var status = Sim.techStatus(state, nodeId);
+    if (status === 'done') return { ok: false, reason: 'Researched' };
+    if (status === 'researching') return { ok: false, reason: 'In progress' };
+    if (status === 'queued') return { ok: false, reason: 'Queued' };
+    if (status === 'locked') {
+      return { ok: false, reason: 'Needs ' + Sim.missingPrerequisites(state, nodeId).join(', ') };
+    }
+    if (state.tech.queue.length >= Mandate.BALANCE.research.queueMax) {
+      return { ok: false, reason: 'Queue full' };
+    }
+    if (state.resources.politicalCapital < node.cost) {
+      return { ok: false, reason: 'Not enough Political Capital' };
+    }
+    return { ok: true };
+  };
+
+  Sim.queueTech = function (state, nodeId) {
+    if (!Sim.canQueueTech(state, nodeId).ok) return false;
+    var node = Mandate.TECH.byId(nodeId);
+    state.resources.politicalCapital -= node.cost;
+    state.tech.queue.push(nodeId);
+    touch(state);
+    return true;
+  };
+
+  /**
+   * Take a node back out of the queue and refund its Political Capital in
+   * full. Progress already banked on the head node is LOST, which is the only
+   * penalty — a research programme you abandon halfway is time you spent, not
+   * money you wasted.
+   *
+   * Cancelling a node that later nodes were queued behind drops them too:
+   * they were only legal because this one was in the queue, so leaving them
+   * would let a player queue a tier-3 node by queueing and cancelling its
+   * prerequisite. They are refunded as well.
+   */
+  Sim.cancelTech = function (state, nodeId) {
+    var at = state.tech.queue.indexOf(nodeId);
+    if (at === -1) return false;
+
+    var dropped = state.tech.queue.splice(at);
+    if (at === 0) state.tech.progress = 0;
+
+    /* Walk what is left and drop anything now missing a prerequisite. This
+     * has to repeat until nothing changes: dropping a tier-2 node can orphan
+     * the tier-3 node behind it. */
+    var changed = true;
+    while (changed) {
+      changed = false;
+      for (var i = state.tech.queue.length - 1; i >= 0; i--) {
+        var id = state.tech.queue[i];
+        var node = Mandate.TECH.byId(id);
+        var met = (node.requires || []).every(function (requiredId) {
+          return state.tech.completed.indexOf(requiredId) !== -1 ||
+            state.tech.queue.indexOf(requiredId) !== -1;
+        });
+        if (!met) {
+          dropped = dropped.concat(state.tech.queue.splice(i, 1));
+          if (i === 0) state.tech.progress = 0;
+          changed = true;
+        }
+      }
+    }
+
+    dropped.forEach(function (id) {
+      var node = Mandate.TECH.byId(id);
+      if (node) state.resources.politicalCapital += node.cost;
+    });
+    clampResources(state);
+    touch(state);
+    return true;
+  };
+
+  /** One day of research. Completes at most one node per day, by design. */
+  function advanceResearch(state) {
+    if (!state.tech.queue.length) return;
+    state.tech.progress += Sim.researchPerDay(state);
+
+    var nodeId = state.tech.queue[0];
+    var node = Mandate.TECH.byId(nodeId);
+    if (!node || state.tech.progress < node.days) return;
+
+    state.tech.queue.shift();
+    state.tech.completed.push(nodeId);
+    state.tech.progress = 0;
+    state.stats.techCompleted += 1;
+    touch(state);
+  }
+
+  /* ------------------------------------------------------------------------
+   * APPOINTEES
+   * ---------------------------------------------------------------------- */
+
+  /**
+   * Roll one candidate: a role, a perk, and — more often than not — a
+   * drawback that makes them cheaper. The salary is the sum of what their
+   * traits are worth, so a Corrupt Technocrat genuinely undercuts a clean
+   * one. That is the offer the pool is making.
+   */
+  Sim.drawCandidate = function (state) {
+    var A = Mandate.BALANCE.appointees;
+    var role = Sim.random(state) < 0.5 ? 'minister' : 'governor';
+
+    var traits = [pick(state, Mandate.TRAITS.poolFor(role, false))];
+    if (Sim.random(state) < A.drawbackChance) {
+      traits.push(pick(state, Mandate.TRAITS.poolFor(role, true)));
+    }
+
+    var salary = A.salaryBase;
+    traits.forEach(function (id) {
+      var trait = Mandate.TRAITS.byId(id);
+      if (trait) salary += trait.salary;
+    });
+    /* A candidate whose drawbacks outweigh their perk must still cost
+     * something — nobody works for nothing, and a free appointee would be a
+     * free modifier. */
+    if (salary < 0.05) salary = 0.05;
+
+    return {
+      id: 'a' + (state.appointees.nextId++),
+      name: pick(state, Mandate.APPOINTEES.firstNames) + ' ' +
+        pick(state, Mandate.APPOINTEES.surnames),
+      title: pick(state, Mandate.APPOINTEES.titles[role]),
+      role: role,
+      traits: traits,
+      salary: Math.round(salary * 100) / 100,
+      regionId: null,
+    };
+  };
+
+  /** One-off Treasury cost of taking someone on: about three months' wages. */
+  Sim.hiringFee = function (state, candidate) {
+    return Math.round(candidate.salary * Mandate.BALANCE.appointees.hiringFeeDays *
+      Mods.mult(Mods.of(state), 'salary.mult'));
+  };
+
+  /**
+   * The pool refreshes on a timer, never on demand. Waiting for a better
+   * candidate therefore costs real days off the clock, which is what stops
+   * "don't hire anyone until something perfect appears" from being free.
+   */
+  function refreshPool(state) {
+    var A = Mandate.BALANCE.appointees;
+    if (state.day - state.appointees.lastRefreshDay < A.refreshEveryDays) return;
+    state.appointees.lastRefreshDay = state.day;
+    if (state.appointees.pool.length >= A.poolMax) return;
+    state.appointees.pool.push(Sim.drawCandidate(state));
+  }
+
+  Sim.candidateById = function (state, id) {
+    var pool = state.appointees.pool;
+    for (var i = 0; i < pool.length; i++) if (pool[i].id === id) return pool[i];
+    return null;
+  };
+
+  Sim.appointeeById = function (state, id) {
+    var hired = state.appointees.hired;
+    for (var i = 0; i < hired.length; i++) if (hired[i].id === id) return hired[i];
+    return null;
+  };
+
+  Sim.governorOf = function (state, regionId) {
+    var hired = state.appointees.hired;
+    for (var i = 0; i < hired.length; i++) {
+      if (hired[i].role === 'governor' && hired[i].regionId === regionId) return hired[i];
+    }
+    return null;
+  };
+
+  Sim.canHire = function (state, candidateId) {
+    if (state.gameOver) return { ok: false, reason: 'Run over' };
+    var candidate = Sim.candidateById(state, candidateId);
+    if (!candidate) return { ok: false, reason: 'Gone' };
+    if (Sim.hiredCount(state, candidate.role) >= Sim.slotsFor(state, candidate.role)) {
+      return { ok: false, reason: 'No ' + candidate.role + ' slot free' };
+    }
+    if (state.resources.treasury < Sim.hiringFee(state, candidate)) {
+      return { ok: false, reason: 'Not enough Treasury' };
+    }
+    return { ok: true };
+  };
+
+  Sim.hire = function (state, candidateId) {
+    if (!Sim.canHire(state, candidateId).ok) return false;
+    var candidate = Sim.candidateById(state, candidateId);
+
+    state.resources.treasury -= Sim.hiringFee(state, candidate);
+    state.appointees.pool.splice(state.appointees.pool.indexOf(candidate), 1);
+    candidate.hiredOn = state.day;
+    state.appointees.hired.push(candidate);
+    state.stats.appointeesHired += 1;
+    touch(state);
+    return true;
+  };
+
+  /**
+   * Dismissal is free and immediate, and they do NOT go back into the pool:
+   * hiring is a commitment you can end, not a loan you can return. The one-off
+   * fee is what you lose.
+   */
+  Sim.dismiss = function (state, appointeeId) {
+    var person = Sim.appointeeById(state, appointeeId);
+    if (!person) return false;
+    state.appointees.hired.splice(state.appointees.hired.indexOf(person), 1);
+    touch(state);
+    return true;
+  };
+
+  /**
+   * Post a governor to a region (or recall them with regionId = null).
+   * A region holds at most one governor, so posting into an occupied region
+   * recalls the incumbent rather than silently stacking two sets of traits on
+   * the same place.
+   */
+  Sim.assign = function (state, appointeeId, regionId) {
+    var person = Sim.appointeeById(state, appointeeId);
+    if (!person || person.role !== 'governor') return false;
+    if (regionId && !Mandate.State.regionById(state, regionId)) return false;
+
+    if (regionId) {
+      var incumbent = Sim.governorOf(state, regionId);
+      if (incumbent && incumbent !== person) incumbent.regionId = null;
+    }
+    person.regionId = regionId || null;
+    touch(state);
+    return true;
+  };
+
+  /* ------------------------------------------------------------------------
+   * POLICIES
+   * ---------------------------------------------------------------------- */
+
+  /** Days left before this category can be changed again; 0 when it is free. */
+  Sim.policyCooldownLeft = function (state, categoryId) {
+    var changedOn = state.policies.changedOn[categoryId];
+    if (changedOn === undefined) return 0;
+    var left = Mandate.BALANCE.policies.cooldownDays - (state.day - changedOn);
+    return left > 0 ? left : 0;
+  };
+
+  Sim.canEnactPolicy = function (state, categoryId, optionId) {
+    if (state.gameOver) return { ok: false, reason: 'Run over' };
+    var option = Mandate.POLICIES.option(categoryId, optionId);
+    if (!option) return { ok: false, reason: 'Unknown policy' };
+    if (state.policies.active[categoryId] === optionId) {
+      return { ok: false, reason: 'In force' };
+    }
+    var left = Sim.policyCooldownLeft(state, categoryId);
+    if (left > 0) return { ok: false, reason: Math.ceil(left) + ' days' };
+    if (state.resources.politicalCapital < (option.cost || 0)) {
+      return { ok: false, reason: 'Not enough Political Capital' };
+    }
+    return { ok: true };
+  };
+
+  Sim.enactPolicy = function (state, categoryId, optionId) {
+    if (!Sim.canEnactPolicy(state, categoryId, optionId).ok) return false;
+    var option = Mandate.POLICIES.option(categoryId, optionId);
+    state.resources.politicalCapital -= (option.cost || 0);
+    state.policies.active[categoryId] = optionId;
+    state.policies.changedOn[categoryId] = state.day;
+    touch(state);
     recomputeDerived(state);
     return true;
   };
