@@ -9,15 +9,21 @@ Tick items off as they land, and note anything deferred in `DEVLOG.md`.
 
 ## Phase 1 — Playable skeleton ✅ *(complete)*
 
-- [x] App shell: fixed three-row CSS Grid at `100dvh` (top HUD / map / tab bar)
-- [x] Mobile hardening: safe-area insets, no overscroll, no zoom, no page scroll
+- [x] **Landscape** app shell: full-bleed map with the HUD floating over it
+- [x] Click-through HUD layer so the map stays tappable underneath it
+- [x] Portrait gate asking the player to rotate
+- [x] Mobile hardening: safe-area insets on all four edges (the landscape notch
+      is on a side edge), no overscroll, no zoom, no page scroll
 - [x] Design tokens: colour palette + spacing scale as CSS custom properties
 - [x] `clamp()` type scale and 44px minimum touch targets
-- [x] SVG placeholder map — 16 generated polygon regions, seamless edges
+- [x] SVG placeholder map — 16 generated polygon regions in a landscape
+      viewBox, seamless edges, country-shaped silhouette
 - [x] Map geometry in its own data file, fully decoupled from game logic
 - [x] Regions are tappable (`pointerdown`, with press feedback)
 - [x] Region fill colour reflects stability band
-- [x] Region detail sheet: stats + action buttons generated from balance data
+- [x] Region detail panel sliding in from the right; the HUD insets and the map
+      shrinks so nothing important is ever covered
+- [x] Region stats + action buttons generated from balance data
 - [x] Working actions: Invest (development) and Public Works (stability)
 - [x] Core state object, plain and serialisable
 - [x] Fixed-timestep tick loop with capped catch-up
@@ -48,7 +54,7 @@ Tick items off as they land, and note anything deferred in `DEVLOG.md`.
 - [ ] Mandate decay driven by unstable regions, not just baseline
 - [ ] **Game over** at Mandate 0: proper screen, not just the veil hook
 - [ ] Balance the first full loop to roughly a 45–60 minute run
-- [ ] Remove the "Phase 1 build" note from the region panel
+- [ ] Remove the "Phase 1" note from the region panel
 
 ---
 
@@ -96,8 +102,9 @@ Tick items off as they land, and note anything deferred in `DEVLOG.md`.
       save/restart controls
 - [ ] Accessibility pass: contrast, labels, reduced motion
 - [ ] Sound/haptics (optional — `navigator.vibrate` on key actions)
-- [ ] Test on a small phone (360px) and a large one; check notch/gesture-bar
-      insets on a real device
+- [ ] Test on a small phone (667×375 landscape) and a large one; check
+      notch/gesture-bar insets on a real device, held both ways round
+- [ ] Consider map pan/zoom now that the map is full-bleed
 - [ ] Replace placeholder region names and the map, if a real one is wanted
 
 ---
@@ -113,6 +120,9 @@ Tick items off as they land, and note anything deferred in `DEVLOG.md`.
       `com.yourname.mandate`
 - [ ] `npx cap add android`, commit the generated `android/` folder
 - [ ] App icons and splash screen
+- [ ] Lock the app to landscape:
+      `android:screenOrientation="sensorLandscape"` on the activity in
+      `android/app/src/main/AndroidManifest.xml`
 - [ ] Target **API 36 (Android 16)** — required for new apps and updates from
       **31 August 2026**
 - [ ] Generate a keystore, back it up in **two** places, base64 it into GitHub

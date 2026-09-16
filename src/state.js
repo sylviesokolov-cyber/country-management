@@ -74,6 +74,7 @@
         nationalOutput: 0,
         treasuryPerDay: 0,
         mandatePerDay: 0,
+        nationalStability: 0,
       },
 
       /* Running totals — cheap now, and Phase 4's run summary will want them. */

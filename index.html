@@ -8,7 +8,8 @@
     initial-scale=1      : no zoom on load
     viewport-fit=cover   : draw under the notch / home bar. REQUIRED for the
                            env(safe-area-inset-*) padding in base.css to be
-                           anything other than 0.
+                           anything other than 0. In LANDSCAPE the notch is on
+                           a side edge, so this matters more, not less.
     user-scalable=no +
     maximum-scale=1      : pinch-zooming a game HUD only ever breaks it. (Note:
                            iOS Safari ignores these for accessibility reasons,
@@ -27,113 +28,127 @@
 </head>
 <body>
 
+<!-- Shown instead of the game when the viewport is portrait. The packaged
+     Android app will lock to landscape in the manifest (Phase 6); this is the
+     browser equivalent. -->
+<div class="rotate-gate" id="rotate-gate">
+  <div class="rotate-gate__icon" aria-hidden="true">&#128241;</div>
+  <div>
+    <div class="panel__title">Rotate your phone</div>
+    <p class="panel__subtitle">Mandate is played in landscape</p>
+  </div>
+</div>
+
 <!-- ===========================================================================
-     THE APP SHELL: exactly three grid rows, pinned to the viewport.
-     Nothing outside a .scrollable element ever scrolls.
+     THE APP SHELL — landscape, full-bleed.
+     The map fills the screen; the HUD floats on top of it.
      ======================================================================== -->
 <div id="app">
 
-  <!-- ---------------------------------------------------------------- TOP -->
-  <header class="hud-top">
-    <div class="resource-row">
-      <div class="resource resource--treasury">
-        <span class="resource__icon" aria-hidden="true">&#128176;</span>
-        <div class="resource__body">
-          <div class="resource__label">Treasury</div>
-          <div class="resource__value" id="hud-treasury">0</div>
-        </div>
+  <!-- ------------------------------------------------------- MAP (bottom) -->
+  <div class="map-layer" id="map-layer">
+    <!-- Built by src/ui/map.js from data/map-geometry.js. Nothing about the
+         map is hardcoded in this file. -->
+    <svg class="map" id="map" xmlns="http://www.w3.org/2000/svg"
+         preserveAspectRatio="xMidYMid meet" role="group" aria-label="Country map"></svg>
+  </div>
+
+  <!-- ------------------------------------------------- HUD (floats above) -->
+  <!-- This layer is click-through; only the controls inside it take taps, so
+       you can still tap a region that sits visually beneath the HUD. -->
+  <div class="hud">
+
+    <!-- top-left: resource chips -->
+    <div class="hud-topleft chips">
+      <div class="chip glass chip--treasury">
+        <span class="chip__icon" aria-hidden="true">&#128176;</span>
+        <span class="chip__value" id="hud-treasury">0</span>
+        <span class="chip__rate" id="hud-treasury-rate">+0/d</span>
       </div>
       <!-- Shown but not simulated until Phase 2. Kept in the HUD from day one
            so the layout never has to change shape later. -->
-      <div class="resource resource--capital resource--pending" id="hud-capital-box">
-        <span class="resource__icon" aria-hidden="true">&#127963;</span>
-        <div class="resource__body">
-          <div class="resource__label">Capital</div>
-          <div class="resource__value" id="hud-capital">0</div>
-        </div>
+      <div class="chip glass chip--capital chip--pending">
+        <span class="chip__icon" aria-hidden="true">&#127963;</span>
+        <span class="chip__value" id="hud-capital">0</span>
       </div>
-      <div class="resource resource--manpower resource--pending" id="hud-manpower-box">
-        <span class="resource__icon" aria-hidden="true">&#128101;</span>
-        <div class="resource__body">
-          <div class="resource__label">Manpower</div>
-          <div class="resource__value" id="hud-manpower">0</div>
-        </div>
+      <div class="chip glass chip--manpower chip--pending">
+        <span class="chip__icon" aria-hidden="true">&#128101;</span>
+        <span class="chip__value" id="hud-manpower">0</span>
+      </div>
+      <div class="chip glass chip--stability">
+        <span class="chip__icon" aria-hidden="true">&#9878;</span>
+        <span class="chip__value" id="hud-stability">0%</span>
       </div>
     </div>
 
-    <div class="status-row">
-      <div class="mandate">
-        <div class="mandate__head">
-          <span>Mandate</span>
-          <span class="mandate__value" id="hud-mandate">100</span>
-        </div>
-        <div class="mandate__track" role="progressbar" aria-label="Mandate"
-             aria-valuemin="0" aria-valuemax="100" aria-valuenow="100" id="hud-mandate-track">
-          <div class="mandate__fill" id="hud-mandate-fill"></div>
-        </div>
-      </div>
-
-      <div class="clock">
-        <div class="clock__date" id="hud-date">1 Jan 2027</div>
-        <!-- Speed controls. data-speed maps straight onto state.speed. -->
-        <div class="speed" role="group" aria-label="Game speed">
-          <button class="speed__btn" data-speed="0" aria-pressed="false" aria-label="Pause">&#9208;</button>
-          <button class="speed__btn" data-speed="1" aria-pressed="true"  aria-label="Normal speed">1&times;</button>
-          <button class="speed__btn" data-speed="2" aria-pressed="false" aria-label="Double speed">2&times;</button>
-        </div>
+    <!-- top-right: date + speed -->
+    <div class="hud-topright clock glass">
+      <span class="clock__date" id="hud-date">1 Jan 2027</span>
+      <!-- data-speed maps straight onto state.speed. -->
+      <div class="speed" role="group" aria-label="Game speed">
+        <button class="speed__btn" data-speed="0" aria-pressed="false" aria-label="Pause">&#9208;</button>
+        <button class="speed__btn" data-speed="1" aria-pressed="true"  aria-label="Normal speed">1&times;</button>
+        <button class="speed__btn" data-speed="2" aria-pressed="false" aria-label="Double speed">2&times;</button>
       </div>
     </div>
-  </header>
 
-  <!-- --------------------------------------------------------------- MAP -->
-  <main class="map-layer" id="map-layer">
-    <!-- The <svg> is built by src/ui/map.js from data/map-geometry.js.
-         Nothing about the map is hardcoded in this file. -->
-    <svg class="map" id="map" xmlns="http://www.w3.org/2000/svg"
-         preserveAspectRatio="xMidYMid meet" role="group" aria-label="Country map"></svg>
-
-    <!-- Region detail panel. Slides up over the map; the tab bar stays put. -->
-    <section class="sheet" id="region-sheet" aria-hidden="true" aria-label="Region detail">
-      <div class="sheet__head">
-        <div>
-          <div class="sheet__subtitle" id="region-terrain">&nbsp;</div>
-          <div class="sheet__title" id="region-name">&nbsp;</div>
-        </div>
-        <button class="sheet__close" id="region-close" aria-label="Close region panel">&times;</button>
+    <!-- right edge: vertical gauges -->
+    <div class="hud-rail rail">
+      <div class="gauge glass" role="progressbar" aria-label="Mandate"
+           aria-valuemin="0" aria-valuemax="100" aria-valuenow="100" id="hud-mandate-gauge">
+        <span class="gauge__value" id="hud-mandate">100</span>
+        <div class="gauge__track"><div class="gauge__fill" id="hud-mandate-fill"></div></div>
+        <span class="gauge__label">Mandate</span>
       </div>
-      <div class="sheet__body scrollable" id="region-body"></div>
-    </section>
+    </div>
 
-    <!-- Bottom-tab panels (Tech / Appointees / Policies / Events). -->
-    <section class="sheet" id="tab-sheet" aria-hidden="true" aria-label="Menu">
-      <div class="sheet__head">
-        <div>
-          <div class="sheet__subtitle">Ministry</div>
-          <div class="sheet__title" id="tab-title">&nbsp;</div>
-        </div>
-        <button class="sheet__close" id="tab-close" aria-label="Close panel">&times;</button>
-      </div>
-      <div class="sheet__body scrollable" id="tab-body"></div>
-    </section>
+    <!-- bottom-left: opens the full-screen management overlay -->
+    <button class="hud-bottomleft corner-btn" id="btn-ministry">
+      <span class="corner-btn__icon" aria-hidden="true">&#9881;</span>
+      <span>Ministry</span>
+    </button>
 
-    <!-- Phase 2 will show the run-over summary here. -->
-    <div class="veil" id="veil">
+    <!-- bottom-right: opens the region list -->
+    <button class="hud-bottomright corner-btn" id="btn-regions">
+      <span>Regions</span>
+      <span class="corner-btn__icon" aria-hidden="true">&#128506;</span>
+    </button>
+  </div>
+
+  <!-- ------------------------------------------- REGION PANEL (right side) -->
+  <section class="side-panel" id="region-panel" aria-hidden="true" aria-label="Region detail">
+    <div class="panel__head">
       <div>
-        <div class="sheet__title" id="veil-title">Run over</div>
-        <p class="sheet__subtitle" id="veil-reason"></p>
+        <div class="panel__subtitle" id="region-terrain">&nbsp;</div>
+        <div class="panel__title" id="region-name">&nbsp;</div>
       </div>
+      <button class="panel__close" id="region-close" aria-label="Close region panel">&times;</button>
     </div>
-  </main>
+    <div class="panel__body scrollable" id="region-body"></div>
+  </section>
 
-  <!-- ------------------------------------------------------------- BOTTOM -->
-  <nav class="hud-bottom">
-    <div class="tabs">
-      <button class="tab" data-tab="tech"       aria-pressed="false"><span class="tab__icon" aria-hidden="true">&#9881;</span>Tech</button>
-      <button class="tab" data-tab="appointees" aria-pressed="false"><span class="tab__icon" aria-hidden="true">&#128100;</span>Appointees</button>
-      <button class="tab" data-tab="policies"   aria-pressed="false"><span class="tab__icon" aria-hidden="true">&#128220;</span>Policies</button>
-      <button class="tab" data-tab="events"     aria-pressed="false"><span class="tab__icon" aria-hidden="true">&#10071;</span>Events</button>
+  <!-- ----------------------------------------------- FULL-SCREEN OVERLAY -->
+  <!-- Tabs across the top, content below — the shape the reference games use
+       for their management screens. -->
+  <section class="overlay" id="overlay" aria-hidden="true" aria-label="Management">
+    <div class="overlay__tabs" role="group" aria-label="Sections">
+      <button class="overlay__tab" data-tab="tech"       aria-pressed="false"><span class="overlay__tab-icon" aria-hidden="true">&#9881;</span>Tech</button>
+      <button class="overlay__tab" data-tab="appointees" aria-pressed="false"><span class="overlay__tab-icon" aria-hidden="true">&#128100;</span>Appointees</button>
+      <button class="overlay__tab" data-tab="policies"   aria-pressed="false"><span class="overlay__tab-icon" aria-hidden="true">&#128220;</span>Policies</button>
+      <button class="overlay__tab" data-tab="events"     aria-pressed="false"><span class="overlay__tab-icon" aria-hidden="true">&#10071;</span>Events</button>
+      <button class="overlay__tab" data-tab="regions"    aria-pressed="false"><span class="overlay__tab-icon" aria-hidden="true">&#128506;</span>Regions</button>
+      <button class="overlay__close" id="overlay-close" aria-label="Close">&times;</button>
     </div>
-  </nav>
+    <div class="overlay__body scrollable" id="overlay-body"></div>
+  </section>
+
+  <!-- Phase 2 will show the run-over summary here. -->
+  <div class="veil" id="veil">
+    <div>
+      <div class="veil__title" id="veil-title">Run over</div>
+      <p class="veil__reason" id="veil-reason"></p>
+    </div>
+  </div>
 </div>
 
 <!-- ===========================================================================
@@ -158,7 +173,7 @@
 <script src="src/ui/map.js"></script>
 <script src="src/ui/hud.js"></script>
 <script src="src/ui/panel.js"></script>
-<script src="src/ui/tabs.js"></script>
+<script src="src/ui/overlay.js"></script>
 
 <script src="src/main.js"></script>
 </body>

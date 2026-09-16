@@ -1,5 +1,5 @@
 /* ============================================================================
- * src/ui/panel.js — the region detail sheet.
+ * src/ui/panel.js — the region detail panel (slides in from the right).
  * ----------------------------------------------------------------------------
  * Split into two phases, which is the pattern used everywhere in this project:
  *   open()   builds the markup for a region (rarely — only on tap)
@@ -8,6 +8,10 @@
  *
  * The action buttons are generated from Mandate.BALANCE.actions, so adding an
  * action is a data edit plus one branch in the sim — no UI work.
+ *
+ * It sits on the right edge rather than across the bottom because the game is
+ * landscape: a side panel leaves most of the country visible while you act on
+ * one region.
  * ========================================================================== */
 (function (Mandate) {
   'use strict';
@@ -16,12 +20,12 @@
   var Util = Mandate.Util;
   var View = Mandate.View;
 
-  var sheetEl, bodyEl, nameEl, terrainEl;
+  var panelEl, bodyEl, nameEl, terrainEl;
   var onAction = function () {};
   var statNodes = {};
 
   Panel.build = function (handlers) {
-    sheetEl = Util.el('region-sheet');
+    panelEl = Util.el('region-panel');
     bodyEl = Util.el('region-body');
     nameEl = Util.el('region-name');
     terrainEl = Util.el('region-terrain');
@@ -66,19 +70,22 @@
 
     var note = document.createElement('div');
     note.className = 'note';
-    note.innerHTML = '<strong>Phase 1 build.</strong> Regions do not yet drift ' +
-      'on their own, and Political Capital and Manpower are not simulated. ' +
-      'Phase 2 adds region simulation, the full economy and the game-over rule.';
+    note.innerHTML = '<strong>Phase 1.</strong> Regions do not drift on their ' +
+      'own yet, and Capital and Manpower are not simulated. Phase 2 adds ' +
+      'region simulation, the full economy and the game-over rule.';
     bodyEl.appendChild(note);
 
     View.invalidate();   /* the markup is new; forget memoised values */
-    View.setSheetOpen(sheetEl, true);
+    View.setOpen(panelEl, true);
+    /* Tells the shell to inset the HUD and shrink the map (see base.css). */
+    document.getElementById('app').classList.add('panel-open');
     Panel.render(state);
   };
 
   Panel.close = function () {
     View.viewState.selectedRegionId = null;
-    View.setSheetOpen(sheetEl, false);
+    View.setOpen(panelEl, false);
+    document.getElementById('app').classList.remove('panel-open');
   };
 
   /** Per-frame refresh of the numbers in the open panel. */

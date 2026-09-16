@@ -39,7 +39,16 @@
     Mandate.MapView.build(Util.el('map'), onRegionTap);
     Mandate.Hud.build(onSpeedChange);
     Mandate.Panel.build({ onAction: onRegionAction });
-    Mandate.Tabs.build({ onOpen: onTabOpen });
+    Mandate.Overlay.build({
+      /* The overlay renders from live state, so it asks for it rather than
+       * holding a stale reference. */
+      getState: function () { return state; },
+      onPickRegion: onPickRegionFromList,
+    });
+
+    /* The two bottom-corner buttons are just overlay openers. */
+    Mandate.View.onTap(Util.el('btn-ministry'), function () { onOverlayOpen('tech'); });
+    Mandate.View.onTap(Util.el('btn-regions'), function () { onOverlayOpen('regions'); });
 
     /* --- start the clock --- */
     loop = new Mandate.GameLoop({
@@ -69,6 +78,7 @@
     Mandate.Hud.render(s);
     Mandate.MapView.render(s);
     Mandate.Panel.render(s);
+    Mandate.Overlay.render(s);
     renderGameOver(s);
   }
 
@@ -85,12 +95,19 @@
   }
 
   function onRegionTap(regionId) {
-    Mandate.Tabs.close();            /* only one sheet open at a time */
+    Mandate.Overlay.close();         /* only one thing open at a time */
     if (Mandate.View.viewState.selectedRegionId === regionId) {
       Mandate.Panel.close();         /* tapping the open region closes it */
     } else {
       Mandate.Panel.open(state, regionId);
     }
+  }
+
+  /* Picking a region from the Regions list: select it and get out of the way
+   * so the player lands back on the map with the panel open. */
+  function onPickRegionFromList(regionId) {
+    Mandate.Overlay.close();
+    Mandate.Panel.open(state, regionId);
   }
 
   function onRegionAction(regionId, actionId) {
@@ -101,9 +118,15 @@
     }
   }
 
-  function onTabOpen(tabId) {
+  function onOverlayOpen(tabId) {
     Mandate.Panel.close();
-    Mandate.Tabs.open(tabId);
+    /* Tapping the button for the tab that is already open closes it — standard
+     * phone behaviour, and it makes the corner buttons a toggle. */
+    if (Mandate.View.viewState.activeTab === tabId) {
+      Mandate.Overlay.close();
+    } else {
+      Mandate.Overlay.open(tabId);
+    }
   }
 
   /* ------------------------------------------------------------------------

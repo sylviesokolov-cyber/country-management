@@ -51,8 +51,11 @@
       decayPerUnstableRegionPerDay: 0.01,
       unstableBelow: 35,
       gameOverAt: 0,
-      /* Below this the meter turns red. Purely a UI warning, but it lives here
-       * because it is a tuning decision, not a layout decision. */
+      /* Meter colour thresholds: green at or above `healthyAbove`, amber
+       * between, red below `warnBelow`. Purely a UI signal, but it lives here
+       * because where the danger line sits is a tuning decision, not a layout
+       * decision. */
+      healthyAbove: 60,
       warnBelow: 30,
     },
 

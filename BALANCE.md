@@ -90,4 +90,17 @@ something moving on screen, not a balanced game.
 - Political Capital and Manpower are displayed but static.
 - Mandate is not yet threatening within a run.
 
+### 2026-09-16 — landscape rework (no gameplay values changed)
+
+The layout moved to landscape and the map was regenerated (6×3 lattice minus
+two corners, still 16 regions). Starting stats were carried over, so the
+national picture is unchanged: **average stability 49%, ≈7.7 Treasury/day, 3
+regions below the unrest line** (North Adra, Duskmoor, South Adra) — now placed
+on the map's edges, with the capital in the middle, so the frontier is
+geographically meaningful once neighbour effects land in Phase 2.
+
+One value added: `mandate.healthyAbove: 60`. Purely a UI threshold (the gauge
+runs green above it, amber between it and `warnBelow`, red below), but it lives
+in balance because *where the danger line sits* is a tuning decision.
+
 ### _(next entry goes here)_

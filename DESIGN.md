@@ -132,23 +132,51 @@ on the leader's id.
 
 ## 3. Layout
 
-Portrait phone first, designed around ~390 × 844.
+**Landscape, phone first**, designed around ~844 × 390. The game is played with
+the phone held sideways; the browser shows a rotate prompt in portrait, and the
+packaged Android app locks to landscape in the manifest (Phase 6).
+
+**The map fills the entire screen and the HUD floats on top of it.** There is no
+fixed header or footer boxing the map in. In landscape there is only ~390px of
+height to work with, so every pixel spent on a permanent bar is a pixel of map
+lost — overlaying the HUD buys the whole screen back. This is how the genre
+does it (Rebel Inc., Plague Inc. and most mobile 4X games).
 
 ```
-┌─────────────────────────────┐
-│  TOP HUD                    │  resources · Mandate meter ·
-│                             │  date · pause / 1× / 2×
-├─────────────────────────────┤
-│                             │
-│  SVG MAP                    │  tap a region → detail sheet
-│  (16 polygon regions)       │  slides up over the map
-│                             │
-├─────────────────────────────┤
-│  BOTTOM HUD                 │  Tech · Appointees · Policies · Events
-└─────────────────────────────┘
+┌────────────────────────────────────────────────────────────┐
+│ [💰 250 +7.7/d] [🏛 20] [👥 12] [⚖ 49%]   [1 Jan 2027 ▮1×2×] │
+│                                                    ┌────┐  │
+│                                                    │ 100│  │ ← vertical
+│              full-bleed SVG map (16 regions)       │ ▮▮ │   Mandate gauge
+│                                                    │MAND│  │
+│                                                    └────┘  │
+│ [⚙ Ministry]                             [Regions 🗺]      │
+└────────────────────────────────────────────────────────────┘
 ```
 
----
+- **Top-left** — resource chips: Treasury (with its per-day rate), Political
+  Capital, Manpower, national Stability.
+- **Top-right** — in-game date and the pause / 1× / 2× controls.
+- **Right edge** — the Mandate gauge, a vertical bar that drains downward and
+  shifts green → amber → red at the thresholds in `BALANCE.mandate`.
+- **Bottom-left "Ministry"** and **bottom-right "Regions"** open the
+  full-screen management overlay (tabs across the top: Tech, Appointees,
+  Policies, Events, Regions).
+- **Tapping a region** slides a detail panel in from the right edge. A side
+  panel is the right shape in landscape — it leaves most of the country visible
+  while you act on one region, which a bottom sheet would not.
+
+Three details make that panel behave:
+
+1. The HUD sits **above** the panel (`z-index`) and insets its right-hand
+   clusters when the panel opens, so the Mandate gauge and the pause button are
+   never covered.
+2. The **map shrinks** into the remaining width at the same time, so the region
+   you just tapped can't end up hidden behind the panel. The SVG re-letterboxes
+   itself, so this is a width change — no camera maths.
+3. All three are driven by one class on `#app` and one custom property
+   (`--panel-w`), so the panel, the HUD and the map can never disagree about
+   how wide the panel is.
 
 ## 4. Architecture
 
@@ -195,9 +223,11 @@ one branch in the sim. Follow that pattern for every system.
 a viewBox. `data/regions.js` contains only gameplay facts, matched by `id`.
 Nothing in the geometry file knows the game exists.
 
-The current map is 16 procedurally generated placeholder polygons from a
-jittered 4×4 lattice (neighbours share edge points exactly, so there are no
-seams). To replace it with a real hand-drawn map later: produce a file with the
+The current map is 16 procedurally generated placeholder polygons: a jittered
+6×3 lattice with two opposite corner cells dropped, which gives a
+country-shaped silhouette rather than a rectangle. Neighbours share edge points
+exactly, so there are no seams. The viewBox is ~2.1:1 to suit a landscape
+phone. To replace it with a real hand-drawn map later: produce a file with the
 same shape and matching ids. Nothing else in the codebase changes.
 
 ### 4.5 Saves are version-tagged
@@ -250,26 +280,29 @@ casually.
 
 | Rule | Why |
 |---|---|
-| Three-row CSS Grid at `100dvh`, middle row `minmax(0, 1fr)` | The HUDs can never be pushed off-screen and the page can never grow. `dvh` tracks the collapsing mobile address bar; plain `vh` leaves a chunk of UI hidden under it. |
+| Full-bleed map with the HUD as an absolutely-positioned overlay layer | Landscape leaves ~390px of height; a fixed header and footer would eat a third of it. |
+| The HUD layer is `pointer-events: none`; each control opts back in | Otherwise the transparent overlay would swallow taps meant for regions underneath it. This is why you can tap a region that sits visually "under" the HUD. |
+| HUD anchors are a 3×3 grid with `justify-self` per cluster | Corner clusters stay at their natural size instead of stretching across a track, with no absolute-position arithmetic. |
+| `100dvh` on `#app` | `dvh` tracks the collapsing mobile address bar; plain `vh` assumes it's hidden and leaves UI underneath it. |
 | `overflow: hidden` on `html, body`; scrolling only inside `.scrollable` | The page body never scrolls. Panels scroll internally, with `overscroll-behavior: contain` so reaching the end doesn't drag the page. |
 | `overscroll-behavior: none` on the root | Kills rubber-band bounce and pull-to-refresh. |
-| `viewport-fit=cover` + `env(safe-area-inset-*)` padding on both HUDs | Keeps the HUDs clear of the notch and the gesture bar. `env()` reports 0 without `viewport-fit=cover`, so the two go together. |
+| `viewport-fit=cover` + `env(safe-area-inset-*)` padding on **all four** sides of the HUD layer | In landscape the notch is on a *side* edge, not the top, so left/right insets matter as much as top/bottom. `env()` reports 0 without `viewport-fit=cover`, so the two go together. |
 | `user-scalable=no`, `maximum-scale=1`, `touch-action: manipulation` | No pinch-zoom, and no ~300ms double-tap-zoom delay before taps register. iOS ignores the meta tag, which is why `touch-action` is also set on every interactive element. |
 | `user-select: none`, `-webkit-touch-callout: none`, transparent tap highlight | No text selection, no copy/paste bubble on long press, no grey flash. |
 | **`pointerdown`, not `click`**, for all game actions | `click` waits for the browser to rule out a scroll or double-tap. `pointerdown` fires the instant the finger lands. Keyboard (Enter/Space) is handled explicitly to compensate. |
-| `clamp()` for all font sizes | Readable at 360px, not tiny on a tablet. |
-| 44px minimum touch targets | Dense HUD buttons use an invisible `::after` to grow the tap area without changing the visual size. |
+| `clamp()` for all font sizes, and for the gauge height | Readable on a 667×375 phone, not oversized on a tablet. |
+| 44px minimum touch targets | The dense HUD buttons (speed controls) use an invisible `::after` to grow the tap area without changing the visual size — it matters more in landscape, where vertical space is scarce. |
+| A scrim gradient along the top and bottom of the map | The HUD floats over the map; a bright green region directly beneath a chip would wash the text out. The scrim guarantees contrast at the edges without dimming the middle. |
 | CSS custom properties for the whole palette and spacing scale | Defined once in `base.css`. New features can only use values that already exist, so the visual style can't drift. |
-| Sheets animate `transform`, not `height`/`top` | Transforms are GPU-composited and don't force layout — smooth on cheap phones. |
-
----
+| Panels animate `transform`, not `width`/`right` | Transforms are GPU-composited and don't force layout — smooth on cheap phones. |
+| A portrait gate (`@media (orientation: portrait)`) | The layout assumes landscape. Asking for a rotate is honest; letting the HUD pile up on itself is not. |
 
 ## 6. Where the phases are going
 
 Full checklist in `TODO.md`. In short:
 
-1. **Phase 1 (done)** — app shell, SVG map, region panel, state + tick loop,
-   Treasury, top HUD with speed controls.
+1. **Phase 1 (done)** — landscape app shell with the floating HUD, SVG map,
+   region panel, region list, state + tick loop, Treasury, speed controls.
 2. **Phase 2** — full three-resource economy, region stability/development
    simulation with drift and neglect, Mandate decay pressure, game over.
 3. **Phase 3** — tech/policy tree, appointee hiring and assignment.

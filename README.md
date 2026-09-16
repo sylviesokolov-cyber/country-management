@@ -3,7 +3,7 @@
 A 2D country-management strategy game for the browser and Android, in the
 spirit of *Rebel Inc.* and *Plague Inc.*
 
-You are a newly installed national leader. You have a country of 16 regions to
+**Played in landscape.** You are a newly installed national leader. You have a country of 16 regions to
 stabilise and develop, three resources that are never all sufficient at once,
 and a **Mandate** meter that drains from the day you take office. Everything
 you build costs mandate, time or both. When the mandate runs out, so does your
@@ -22,7 +22,7 @@ Plain HTML, CSS and JavaScript. **No build step, no framework, no game engine.**
   build system.
 - The map is inline SVG — each region is a `<polygon>` you can tap, style with
   CSS and animate for free.
-- The HUD and panels are ordinary DOM elements.
+- The HUD and panels are ordinary DOM elements, floating over a full-bleed map.
 - Saves go in `localStorage`.
 - GitHub Pages hosts it, so a commit from a phone is playable on that phone a
   minute later.
@@ -58,6 +58,9 @@ not ES modules. Or serve the folder with anything:
 npx http-server -p 8080 .    # then open http://localhost:8080
 ```
 
+**Hold the phone sideways** — the game is landscape only, and shows a rotate
+prompt in portrait.
+
 **Add it to your home screen** (Chrome → ⋮ → *Add to Home screen*) to play it
 full-screen without browser chrome. The meta tags for that are already in
 `index.html`.
@@ -84,9 +87,9 @@ src/
   ui/
     view.js             shared view plumbing (tap handling, memoised writes)
     map.js              builds and updates the SVG map
-    hud.js              top HUD
-    panel.js            region detail sheet
-    tabs.js             bottom tab bar + its sheets
+    hud.js              the floating HUD (chips, clock, speed, Mandate gauge)
+    panel.js            region detail panel (slides in from the right)
+    overlay.js          full-screen management overlay + the region list
 .github/workflows/
   deploy-pages.yml      auto-deploy to GitHub Pages on push to main
   android-release.yml   manual, signed .aab build (needs Phase 6 first)

@@ -69,7 +69,15 @@
     state.derived.nationalOutput = nationalOutput;
     state.derived.treasuryPerDay = nationalOutput * Mandate.BALANCE.region.treasuryPerOutputPerDay;
     state.derived.mandatePerDay = -mandateLossPerDay(state);
+    state.derived.nationalStability = averageStability(state);
   };
+
+  /** Mean stability across every region — the one-number health of the country. */
+  function averageStability(state) {
+    var total = 0;
+    for (var i = 0; i < state.regions.length; i++) total += state.regions[i].stability;
+    return total / state.regions.length;
+  }
 
   /** Baseline decay plus a penalty for every region in unrest. */
   function mandateLossPerDay(state) {
@@ -124,6 +132,7 @@
     state.derived.nationalOutput = nationalOutput;
     state.derived.treasuryPerDay = treasuryPerDay;
     state.derived.mandatePerDay = -mandateLoss;
+    state.derived.nationalStability = averageStability(state);
 
     /* --- 5. Lose condition ---------------------------------------------- */
     /* PHASE 2 turns this into a real game-over screen. The check lives here,

@@ -1,130 +1,99 @@
 /* ============================================================================
- * styles/ui.css — the components that sit inside the app shell.
+ * styles/ui.css — the floating HUD, the map, and the panels.
  * Uses only the tokens defined in base.css. No raw colours, no raw spacing.
+ *
+ * LANDSCAPE LAYOUT (anchors in the .hud grid):
+ *
+ *   ┌──────────────────────────────────────────────────────┐
+ *   │  [resource chips ......]            [date · ▮ 1× 2×]  │
+ *   │                                                [MAN] │  ← vertical
+ *   │                 full-bleed SVG map             [DATE]│    gauges
+ *   │                                                      │
+ *   │  [Ministry ▲]                          [Regions ▲]   │
+ *   └──────────────────────────────────────────────────────┘
  * ========================================================================== */
 
 /* ---------------------------------------------------------------------------
- * TOP HUD — resources, mandate meter, date, speed controls
+ * HUD ANCHORS — where each cluster sits in the 3x3 .hud grid
  * ------------------------------------------------------------------------ */
-.hud-top {
-  background: linear-gradient(180deg, var(--c-surface) 0%, var(--c-surface-2) 100%);
-  border-bottom: 1px solid var(--c-line);
-  padding-bottom: var(--s-2);
-  display: flex;
-  flex-direction: column;
-  gap: var(--s-2);
-}
+.hud-topleft     { grid-area: 1 / 1; justify-self: start; }
+.hud-topright    { grid-area: 1 / 3; justify-self: end; }
+.hud-rail        { grid-area: 2 / 3; justify-self: end; align-self: start; }
+.hud-bottomleft  { grid-area: 3 / 1; align-self: end; justify-self: start; }
+.hud-bottomright { grid-area: 3 / 3; align-self: end; justify-self: end; }
 
-.resource-row {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: var(--s-2);
-}
+/* Grid items stretch to fill their track by default, which would smear the
+   corner buttons across the screen. `justify-self` above pins each cluster to
+   its own corner; this keeps them at their natural width. */
+.hud > .corner-btn { width: max-content; }
 
-.resource {
+/* ---------------------------------------------------------------------------
+ * RESOURCE CHIPS (top-left)
+ * ------------------------------------------------------------------------ */
+.chips {
   display: flex;
   align-items: center;
-  gap: var(--s-2);
-  background: var(--c-surface-3);
-  border: 1px solid var(--c-line);
-  border-radius: var(--r-sm);
+  gap: var(--s-1);
+  flex-wrap: wrap;
+  max-width: 62vw;   /* never let chips run under the clock cluster */
+}
+
+.chip {
+  display: flex;
+  align-items: center;
+  gap: var(--s-1);
   padding: var(--s-1) var(--s-2);
-  min-width: 0; /* lets the value truncate instead of stretching the grid */
-}
-
-.resource__icon { font-size: var(--f-sm); line-height: 1; }
-.resource__body { min-width: 0; }
-
-.resource__label {
-  font-size: var(--f-xs);
-  color: var(--c-text-faint);
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-}
-
-.resource__value {
-  font-family: var(--font-num);
-  font-size: var(--f-sm);
-  font-variant-numeric: tabular-nums;
+  border-radius: 999px;
   white-space: nowrap;
 }
 
-.resource--treasury .resource__value { color: var(--c-treasury); }
-.resource--capital  .resource__value { color: var(--c-capital); }
-.resource--manpower .resource__value { color: var(--c-manpower); }
+.chip__icon { font-size: var(--f-xs); line-height: 1; }
+
+.chip__value {
+  font-family: var(--font-num);
+  font-size: var(--f-sm);
+  font-variant-numeric: tabular-nums;
+}
+
+.chip__rate {
+  font-family: var(--font-num);
+  font-size: var(--f-xs);
+  color: var(--c-text-faint);
+  font-variant-numeric: tabular-nums;
+}
+
+.chip--treasury  .chip__value { color: var(--c-treasury); }
+.chip--capital   .chip__value { color: var(--c-capital); }
+.chip--manpower  .chip__value { color: var(--c-manpower); }
+.chip--stability .chip__value { color: var(--c-band-stable); }
 
 /* Resources that exist in the HUD but aren't simulated yet read as inactive
    rather than broken. */
-.resource--pending { opacity: 0.45; }
+.chip--pending { opacity: 0.45; }
 
-/* --- mandate meter + clock row --- */
-.status-row {
-  display: flex;
-  align-items: center;
-  gap: var(--s-3);
-}
-
-.mandate { flex: 1 1 auto; min-width: 0; }
-
-.mandate__head {
-  display: flex;
-  justify-content: space-between;
-  align-items: baseline;
-  font-size: var(--f-xs);
-  color: var(--c-text-dim);
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-}
-
-.mandate__value {
-  font-family: var(--font-num);
-  font-variant-numeric: tabular-nums;
-  color: var(--c-mandate);
-  letter-spacing: 0;
-}
-
-.mandate__track {
-  height: 8px;
-  margin-top: var(--s-1);
-  background: var(--c-surface-3);
-  border: 1px solid var(--c-line);
-  border-radius: 999px;
-  overflow: hidden;
-}
-
-.mandate__fill {
-  height: 100%;
-  width: 100%;
-  background: var(--c-mandate);
-  /* Animating width (not transform) is fine here: it's one small element
-     updated a few times a second, not a per-frame animation. */
-  transition: width 220ms linear, background-color 400ms linear;
-}
-
-/* Below BALANCE.mandate.warnBelow the meter goes red — the run is in danger. */
-.mandate__fill--low { background: var(--c-danger); }
-
+/* ---------------------------------------------------------------------------
+ * CLOCK + SPEED (top-right)
+ * ------------------------------------------------------------------------ */
 .clock {
   display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: var(--s-1);
-  flex: 0 0 auto;
+  align-items: center;
+  gap: var(--s-2);
+  padding: var(--s-1) var(--s-2);
 }
 
 .clock__date {
   font-family: var(--font-num);
-  font-size: var(--f-xs);
-  color: var(--c-text-dim);
+  font-size: var(--f-sm);
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
+  color: var(--c-text);
 }
 
 .speed { display: flex; gap: var(--s-1); }
 
 .speed__btn {
-  min-width: var(--tap);
-  min-height: 30px; /* the row is compact; the tap area is widened below */
+  min-width: 34px;
+  height: 28px;
   position: relative;
   padding: 0 var(--s-2);
   font-size: var(--f-sm);
@@ -136,11 +105,12 @@
 }
 
 /* Invisible padding that grows the touch target to 44px without changing the
-   visual size of the button — a standard trick for dense game HUDs. */
+   visual size of the button — a standard trick for dense game HUDs, and it
+   matters more in landscape where vertical space is scarce. */
 .speed__btn::after {
   content: '';
   position: absolute;
-  inset: calc((var(--tap) - 30px) / -2) 0;
+  inset: calc((var(--tap) - 28px) / -2) calc((var(--tap) - 34px) / -2);
 }
 
 .speed__btn[aria-pressed='true'] {
@@ -151,26 +121,120 @@
 }
 
 /* ---------------------------------------------------------------------------
- * MAP LAYER — the SVG, plus anything that slides over it
+ * VERTICAL GAUGE RAIL (right edge) — the Mandate meter
+ * Mirrors the vertical gauges in the reference games: a big number over a
+ * bar that drains downward, readable at a glance mid-decision.
  * ------------------------------------------------------------------------ */
-.map-layer {
-  position: relative;      /* panels are positioned against this box */
-  min-height: 0;           /* required so the grid row can actually shrink */
-  overflow: hidden;
-  /* Breathing room around the map. Sheets are positioned against this box's
-     padding edge, so they still reach the full width and bottom. */
-  padding: var(--s-3);
-  background:
-    radial-gradient(120% 90% at 50% 0%, #131c27 0%, var(--c-bg) 70%);
+.rail { display: flex; flex-direction: column; gap: var(--s-2); }
+
+.gauge {
+  width: 56px;
+  padding: var(--s-2) var(--s-1);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--s-1);
 }
 
+.gauge__value {
+  font-family: var(--font-num);
+  font-size: var(--f-lg);
+  font-variant-numeric: tabular-nums;
+  color: var(--c-band-secure);
+  line-height: 1;
+  transition: color 400ms linear;
+}
+
+.gauge__track {
+  width: 10px;
+  /* Shrinks on short landscape screens rather than pushing the HUD around. */
+  height: clamp(56px, 18vh, 110px);
+  background: var(--c-surface-3);
+  border: 1px solid var(--c-line);
+  border-radius: 999px;
+  overflow: hidden;
+  position: relative;
+}
+
+/* Anchored to the bottom so the bar drains downward like a fuel gauge. */
+.gauge__fill {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 100%;
+  background: var(--c-band-secure);
+  transition: height 220ms linear, background-color 400ms linear;
+}
+
+/* Health colouring, driven by the thresholds in BALANCE.mandate. Deliberately
+   reuses the same green/amber/red the map uses for regions, so one colour
+   language covers the whole game. */
+.gauge--warn .gauge__fill  { background: var(--c-band-strained); }
+.gauge--warn .gauge__value { color: var(--c-band-strained); }
+.gauge--low  .gauge__fill  { background: var(--c-danger); }
+.gauge--low  .gauge__value { color: var(--c-danger); }
+
+.gauge__label {
+  font-size: 9px;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+  color: var(--c-text-faint);
+  text-transform: uppercase;
+}
+
+/* ---------------------------------------------------------------------------
+ * CORNER BUTTONS (bottom-left / bottom-right)
+ * ------------------------------------------------------------------------ */
+.corner-btn {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  min-height: var(--tap);
+  padding: var(--s-2) var(--s-3);
+  border-radius: var(--r-md);
+  font-size: var(--f-sm);
+  font-weight: 600;
+  color: var(--c-text);
+  background: rgba(13, 17, 23, 0.82);
+  border: 1px solid var(--c-line-strong);
+  backdrop-filter: blur(10px) saturate(1.2);
+  -webkit-backdrop-filter: blur(10px) saturate(1.2);
+}
+
+.corner-btn:active { background: var(--c-surface-3); }
+.corner-btn__icon { font-size: var(--f-md); line-height: 1; }
+
+/* ---------------------------------------------------------------------------
+ * THE MAP
+ * ------------------------------------------------------------------------ */
+
+/* A soft dark scrim along the top and bottom edges. The HUD floats over the
+   map, and a green (secure) region directly under a chip would wash the text
+   out — this guarantees contrast wherever the HUD sits, without dimming the
+   middle of the map. Click-through, so it never eats a tap. */
+.map-layer::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    linear-gradient(to bottom, rgba(8, 11, 16, 0.55) 0%, rgba(8, 11, 16, 0) 14%,
+                    rgba(8, 11, 16, 0) 84%, rgba(8, 11, 16, 0.55) 100%);
+}
 .map {
   display: block;
   width: 100%;
   height: 100%;
+  /* The SVG re-letterboxes itself into whatever width it is given, so shrinking
+     it is all that's needed to keep the whole country on screen next to an open
+     panel — no camera maths, no viewBox juggling. */
+  transition: width 220ms ease-out;
 }
 
-/* Each region is a single <path>. Fill comes from a CSS custom property set
+#app.panel-open .map { width: calc(100% - var(--panel-w)); }
+
+/* Each region is a single <polygon>. Fill comes from a CSS custom property set
    per band, so the simulation only ever has to set one class. */
 .region {
   fill: var(--region-fill, var(--c-band-strained));
@@ -196,9 +260,10 @@
 .region--pressed { filter: brightness(1.35); }
 
 .region-label {
-  fill: rgba(255, 255, 255, 0.82);
+  fill: rgba(255, 255, 255, 0.85);
   font-family: var(--font-ui);
-  font-size: 12px;          /* in SVG user units, so it scales with the map */
+  font-size: 13px;          /* in SVG user units, so it scales with the map */
+  font-weight: 600;
   text-anchor: middle;
   pointer-events: none;     /* labels must never swallow a tap */
   paint-order: stroke;
@@ -213,56 +278,62 @@
 }
 
 /* ---------------------------------------------------------------------------
- * SHEETS — the region panel and the bottom-tab panels
- * Both slide up over the map and scroll internally.
+ * REGION PANEL — slides in from the right edge.
+ * In landscape a side panel is the right shape: it leaves most of the country
+ * visible while you act on one region, which a bottom sheet would not.
  * ------------------------------------------------------------------------ */
-.sheet {
+.side-panel {
   position: absolute;
-  left: 0;
+  top: 0;
   right: 0;
   bottom: 0;
-  max-height: 78%;
+  z-index: 20;
+  width: var(--panel-w);
   display: flex;
   flex-direction: column;
-  background: var(--c-surface);
-  border-top: 1px solid var(--c-line-strong);
-  border-radius: var(--r-lg) var(--r-lg) 0 0;
-  box-shadow: 0 -12px 32px rgba(0, 0, 0, 0.45);
-  /* Animate transform, not height/top: transforms are GPU-composited and don't
-     force layout, so the slide stays smooth on a cheap phone. */
-  transform: translateY(101%);
-  transition: transform 220ms ease-out;
-  /* `hidden` keeps a closed sheet out of the tab order and off screen readers.
-     visibility is transitioned so it only disappears AFTER the slide down. */
+  background: rgba(16, 21, 28, 0.94);
+  border-left: 1px solid var(--c-line-strong);
+  box-shadow: -14px 0 32px rgba(0, 0, 0, 0.45);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  /* Animate transform, not width/right: transforms are GPU-composited and
+     don't force layout, so the slide stays smooth on a cheap phone. */
+  transform: translateX(101%);
+  /* `visibility` is transitioned so a closed panel leaves the tab order and
+     screen readers only AFTER it has finished sliding out. */
   visibility: hidden;
   transition: transform 220ms ease-out, visibility 0s linear 220ms;
+  /* Landscape notch: the panel hugs the right edge, so it needs the inset. */
+  padding-right: env(safe-area-inset-right);
+  padding-top: env(safe-area-inset-top);
+  padding-bottom: env(safe-area-inset-bottom);
 }
 
-.sheet.is-open {
-  transform: translateY(0);
+.side-panel.is-open {
+  transform: translateX(0);
   visibility: visible;
   transition: transform 220ms ease-out, visibility 0s;
 }
 
-.sheet__head {
+.panel__head {
   display: flex;
   align-items: center;
-  gap: var(--s-3);
-  padding: var(--s-3) var(--s-4);
+  gap: var(--s-2);
+  padding: var(--s-2) var(--s-3);
   border-bottom: 1px solid var(--c-line);
   flex: 0 0 auto;
 }
 
-.sheet__title { font-size: var(--f-lg); font-weight: 600; }
+.panel__title { font-size: var(--f-md); font-weight: 600; line-height: 1.15; }
 
-.sheet__subtitle {
+.panel__subtitle {
   font-size: var(--f-xs);
   color: var(--c-text-dim);
   text-transform: uppercase;
   letter-spacing: 0.08em;
 }
 
-.sheet__close {
+.panel__close {
   margin-left: auto;
   width: var(--tap);
   height: var(--tap);
@@ -273,9 +344,8 @@
   background: var(--c-surface-2);
 }
 
-.sheet__body {
-  padding: var(--s-4);
-  padding-bottom: var(--s-5);
+.panel__body {
+  padding: var(--s-3);
   flex: 1 1 auto;
 }
 
@@ -284,19 +354,19 @@
   display: grid;
   grid-template-columns: repeat(3, 1fr);
   gap: var(--s-2);
-  margin-bottom: var(--s-4);
+  margin-bottom: var(--s-3);
 }
 
 .stat {
   background: var(--c-surface-2);
   border: 1px solid var(--c-line);
   border-radius: var(--r-sm);
-  padding: var(--s-2);
+  padding: var(--s-2) var(--s-1);
   text-align: center;
 }
 
 .stat__label {
-  font-size: var(--f-xs);
+  font-size: 9px;
   color: var(--c-text-faint);
   text-transform: uppercase;
   letter-spacing: 0.05em;
@@ -304,7 +374,7 @@
 
 .stat__value {
   font-family: var(--font-num);
-  font-size: var(--f-lg);
+  font-size: var(--f-md);
   font-variant-numeric: tabular-nums;
 }
 
@@ -326,10 +396,10 @@
 .action {
   display: flex;
   align-items: center;
-  gap: var(--s-3);
+  gap: var(--s-2);
   width: 100%;
   min-height: var(--tap);
-  padding: var(--s-2) var(--s-3);
+  padding: var(--s-2);
   text-align: left;
   background: var(--c-surface-2);
   border: 1px solid var(--c-line);
@@ -337,29 +407,29 @@
 }
 
 .action:active { background: var(--c-surface-3); }
-
 .action[disabled] { opacity: 0.4; cursor: default; }
 
 .action__main { flex: 1 1 auto; min-width: 0; }
-.action__label { font-size: var(--f-md); font-weight: 600; }
-.action__blurb { font-size: var(--f-xs); color: var(--c-text-dim); }
+.action__label { font-size: var(--f-sm); font-weight: 600; }
+.action__blurb { font-size: var(--f-xs); color: var(--c-text-dim); line-height: 1.25; }
 
 .action__cost {
   flex: 0 0 auto;
   text-align: right;
   font-family: var(--font-num);
-  font-size: var(--f-sm);
+  font-size: var(--f-xs);
   color: var(--c-treasury);
   font-variant-numeric: tabular-nums;
 }
 
-.action__cost small { display: block; color: var(--c-text-faint); font-size: var(--f-xs); }
+.action__cost small { display: block; color: var(--c-text-faint); }
 
 .note {
-  margin-top: var(--s-4);
-  padding: var(--s-3);
-  font-size: var(--f-sm);
+  margin-top: var(--s-3);
+  padding: var(--s-2);
+  font-size: var(--f-xs);
   color: var(--c-text-dim);
+  line-height: 1.35;
   background: var(--c-surface-2);
   border-left: 3px solid var(--c-line-strong);
   border-radius: 0 var(--r-sm) var(--r-sm) 0;
@@ -368,36 +438,132 @@
 .note strong { color: var(--c-text); }
 
 /* ---------------------------------------------------------------------------
- * BOTTOM HUD — tab bar
+ * FULL-SCREEN OVERLAY — tabs across the top, content below.
+ * This is the shape the reference games use for their upgrade/management
+ * screens: the map is paused behind you and the whole screen is the menu.
  * ------------------------------------------------------------------------ */
-.hud-bottom {
-  background: var(--c-surface);
-  border-top: 1px solid var(--c-line);
-}
-
-.tabs {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-}
-
-.tab {
-  min-height: var(--tap);
-  padding: var(--s-2) 0 var(--s-2);
+.overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 30;
   display: flex;
   flex-direction: column;
-  align-items: center;
-  gap: 2px;
-  color: var(--c-text-faint);
-  font-size: var(--f-xs);
-  border-top: 2px solid transparent;
+  background: rgba(10, 14, 19, 0.96);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 160ms ease-out, visibility 0s linear 160ms;
+  padding:
+    env(safe-area-inset-top) env(safe-area-inset-right)
+    env(safe-area-inset-bottom) env(safe-area-inset-left);
 }
 
-.tab__icon { font-size: var(--f-md); line-height: 1; }
+.overlay.is-open {
+  opacity: 1;
+  visibility: visible;
+  transition: opacity 160ms ease-out, visibility 0s;
+}
 
-.tab[aria-pressed='true'] {
-  color: var(--c-accent);
-  border-top-color: var(--c-accent);
+.overlay__tabs {
+  display: flex;
+  align-items: stretch;
+  gap: var(--s-1);
+  padding: var(--s-2) var(--s-2) 0;
+  flex: 0 0 auto;
+}
+
+.overlay__tab {
+  flex: 1 1 0;
+  min-height: var(--tap);
+  padding: var(--s-2) var(--s-1);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--s-1);
+  font-size: var(--f-sm);
+  color: var(--c-text-dim);
   background: var(--c-surface-2);
+  border: 1px solid var(--c-line);
+  border-bottom: none;
+  border-radius: var(--r-sm) var(--r-sm) 0 0;
+}
+
+.overlay__tab[aria-pressed='true'] {
+  color: var(--c-text);
+  background: var(--c-surface-3);
+  border-color: var(--c-line-strong);
+  font-weight: 600;
+  box-shadow: inset 0 2px 0 var(--c-accent);
+}
+
+.overlay__tab-icon { font-size: var(--f-md); line-height: 1; }
+
+.overlay__close {
+  flex: 0 0 auto;
+  width: var(--tap);
+  min-height: var(--tap);
+  margin-left: var(--s-1);
+  border-radius: var(--r-sm);
+  color: var(--c-text-dim);
+  font-size: var(--f-lg);
+  background: var(--c-surface-2);
+  border: 1px solid var(--c-line);
+}
+
+.overlay__body {
+  flex: 1 1 auto;
+  margin: 0 var(--s-2) var(--s-2);
+  padding: var(--s-3);
+  background: var(--c-surface);
+  border: 1px solid var(--c-line-strong);
+  border-radius: 0 0 var(--r-md) var(--r-md);
+  font-size: var(--f-sm);
+  line-height: 1.5;
+  color: var(--c-text-dim);
+}
+
+.overlay__body strong { color: var(--c-text); }
+.overlay__body h3 { margin: 0 0 var(--s-2); font-size: var(--f-md); color: var(--c-text); }
+
+/* --- region list (the Regions button) --- */
+.region-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: var(--s-2);
+}
+
+.region-row {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  min-height: var(--tap);
+  padding: var(--s-1) var(--s-2);
+  text-align: left;
+  background: var(--c-surface-2);
+  border: 1px solid var(--c-line);
+  border-radius: var(--r-sm);
+}
+
+.region-row:active { background: var(--c-surface-3); }
+
+/* The same band colours as the map, so the list and the map agree at a
+   glance. One swatch element, five possible fills. */
+.region-row__swatch {
+  width: 10px;
+  height: 28px;
+  border-radius: 3px;
+  flex: 0 0 auto;
+  background: var(--region-fill, var(--c-band-strained));
+}
+
+.region-row__name { font-size: var(--f-xs); color: var(--c-text); flex: 1 1 auto; min-width: 0; }
+
+.region-row__nums {
+  font-family: var(--font-num);
+  font-size: var(--f-xs);
+  color: var(--c-text-faint);
+  font-variant-numeric: tabular-nums;
 }
 
 /* ---------------------------------------------------------------------------
@@ -406,12 +572,15 @@
 .veil {
   position: absolute;
   inset: 0;
+  z-index: 40;
   display: none;
   align-items: center;
   justify-content: center;
   text-align: center;
   padding: var(--s-5);
-  background: rgba(8, 11, 16, 0.88);
+  background: rgba(8, 11, 16, 0.9);
 }
 
 .veil.is-open { display: flex; }
+.veil__title { font-size: var(--f-xl); font-weight: 700; }
+.veil__reason { color: var(--c-text-dim); font-size: var(--f-sm); }

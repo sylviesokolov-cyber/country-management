@@ -28,6 +28,11 @@ repo, but it deliberately fails fast until Capacitor is set up. It needs:
    repo root. The `appId` is permanent once published; pick it carefully.
 3. **A committed `android/` folder**, generated once by `npx cap add android`.
    Capacitor's native project is meant to live in version control.
+4. **Landscape lock.** The game is landscape-only, so add
+   `android:screenOrientation="sensorLandscape"` to the `<activity>` in
+   `android/app/src/main/AndroidManifest.xml`. Without it the app will rotate
+   into the browser's portrait gate. `sensorLandscape` (rather than
+   `landscape`) lets the player hold the phone either way round.
 
 That is genuinely all — the JDK, the Android SDK, Gradle and signing are all
 handled inside the workflow.
@@ -180,7 +185,8 @@ regardless of how good the build is.
   game's fixed-timestep loop caps catch-up ticks specifically to avoid long
   frames, but re-check after any change to `src/loop.js`.
 - The crawler taps around randomly, so make sure nothing crashes when panels are
-  opened in odd orders or the app is rotated.
+  opened in odd orders or the app is rotated — including the landscape lock
+  above behaving on a tablet.
 
 ### Also required before production
 - Store listing: title, short and full description, screenshots (phone

@@ -81,11 +81,11 @@
     });
   };
 
-  /** Open/close a bottom sheet, keeping the ARIA state in step with the class. */
-  View.setSheetOpen = function (sheetEl, open) {
-    if (!sheetEl) return;
-    sheetEl.classList.toggle('is-open', open);
-    sheetEl.setAttribute('aria-hidden', open ? 'false' : 'true');
+  /** Open/close a panel or overlay, keeping ARIA in step with the class. */
+  View.setOpen = function (el, open) {
+    if (!el) return;
+    el.classList.toggle('is-open', open);
+    el.setAttribute('aria-hidden', open ? 'false' : 'true');
   };
 
   Mandate.View = View;

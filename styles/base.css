@@ -64,6 +64,11 @@
   /* --- minimum comfortable touch target (Apple/Google both say 44px) --- */
   --tap: 44px;
 
+  /* Width of the region panel. Declared here because THREE things need to
+     agree on it: the panel itself, the HUD (which insets so it isn't covered)
+     and the map (which shrinks so the country stays fully visible). */
+  --panel-w: clamp(280px, 40%, 380px);
+
   --font-ui: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
   /* Tabular numerals stop resource counters from jittering as digits change */
   --font-num: ui-monospace, 'SF Mono', 'Roboto Mono', Menlo, monospace;
@@ -118,11 +123,15 @@ button {
 svg { touch-action: manipulation; }
 
 /* ---------------------------------------------------------------------------
- * 3. THE APP SHELL
- *    A three-row grid pinned to the viewport: HUD / map / tab bar.
- *    Because the rows are grid tracks and the middle one is `minmax(0, 1fr)`,
- *    the top and bottom bars can never be pushed off-screen and the middle
- *    can never grow the page — the layout is impossible to shift.
+ * 3. THE APP SHELL — LANDSCAPE, FULL-BLEED MAP
+ *
+ *    The map fills the entire screen. The HUD floats ON TOP of it in the
+ *    corners and along the edges, the way Rebel Inc. and most mobile strategy
+ *    games do it. Nothing boxes the map in.
+ *
+ *    In landscape on a phone there is very little vertical room (~390px), so
+ *    every pixel spent on a fixed header or footer is a pixel of map lost.
+ *    Overlaying the HUD buys back the whole screen.
  * ------------------------------------------------------------------------ */
 #app {
   /* 100dvh = "dynamic viewport height": it tracks the mobile browser's
@@ -131,29 +140,58 @@ svg { touch-action: manipulation; }
   height: 100vh;
   height: 100dvh;
   width: 100%;
-  display: grid;
-  grid-template-rows: auto minmax(0, 1fr) auto;
-  grid-template-columns: 100%;
-  /* The map layer positions its panel against this box. */
-  position: relative;
+  position: relative;   /* every HUD element positions against this box */
   overflow: hidden;
 }
 
-/* Safe-area insets: keep the HUDs clear of the notch/dynamic island at the top
-   and the gesture bar at the bottom. These env() values are 0 on devices that
-   don't need them, so they are free. Requires viewport-fit=cover in the
-   viewport meta tag (see index.html) or env() always reports 0. */
-.hud-top {
-  padding-top: calc(var(--s-2) + env(safe-area-inset-top));
-  padding-left: calc(var(--s-3) + env(safe-area-inset-left));
-  padding-right: calc(var(--s-3) + env(safe-area-inset-right));
+/* The map sits underneath everything, edge to edge. */
+.map-layer {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  background: radial-gradient(120% 120% at 50% 40%, #141d29 0%, var(--c-bg) 75%);
 }
 
-.hud-bottom {
-  padding-bottom: env(safe-area-inset-bottom);
-  padding-left: env(safe-area-inset-left);
-  padding-right: env(safe-area-inset-right);
+/* ---------------------------------------------------------------------------
+ * THE HUD LAYER
+ * A transparent sheet over the map. It must not swallow taps meant for the
+ * map, so the layer itself is click-through and each control opts back in.
+ * This is the standard game-HUD pattern and it is why you can tap a region
+ * that sits visually "under" the HUD area.
+ * ------------------------------------------------------------------------ */
+.hud {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  /* Above the region panel: you must always be able to see the Mandate gauge
+     and hit pause, even with a region open. */
+  z-index: 25;
+  /* Safe-area insets. In LANDSCAPE the notch is on the left or right edge, not
+     the top — so all four sides matter, and padding the layer once keeps every
+     HUD corner clear of the notch and the gesture bar at the same time.
+     Requires viewport-fit=cover in the viewport meta tag or env() reports 0. */
+  padding:
+    calc(var(--s-2) + env(safe-area-inset-top))
+    calc(var(--s-2) + env(safe-area-inset-right) + var(--hud-inset-right, 0px))
+    calc(var(--s-2) + env(safe-area-inset-bottom))
+    calc(var(--s-2) + env(safe-area-inset-left));
+  transition: padding-right 220ms ease-out;
+  display: grid;
+  /* Three columns, three rows: the six HUD anchors land in the corners and
+     along the top edge without any absolute positioning maths. */
+  grid-template-columns: auto 1fr auto;
+  grid-template-rows: auto 1fr auto;
+  gap: var(--s-2);
 }
+
+/* Anything interactive inside the HUD takes its taps back. */
+.hud > * { pointer-events: auto; }
+
+/* With the region panel open, the right-hand HUD clusters slide inward so the
+   panel never covers them, and the map re-fits into what's left so the region
+   you just tapped can't end up hidden behind the panel. One class on #app
+   drives all three. */
+#app.panel-open { --hud-inset-right: var(--panel-w); }
 
 /* The ONLY places scrolling is allowed. `-webkit-overflow-scrolling` keeps
    momentum scrolling on iOS; `overscroll-behavior: contain` stops a scroll
@@ -164,10 +202,59 @@ svg { touch-action: manipulation; }
   -webkit-overflow-scrolling: touch;
 }
 
+/* Frosted panel look, shared by every floating HUD element. */
+.glass {
+  background: rgba(13, 17, 23, 0.82);
+  border: 1px solid var(--c-line);
+  border-radius: var(--r-md);
+  /* Progressive enhancement: a browser without backdrop-filter just gets the
+     solid background above, which is already readable. */
+  backdrop-filter: blur(10px) saturate(1.2);
+  -webkit-backdrop-filter: blur(10px) saturate(1.2);
+}
+
+/* ---------------------------------------------------------------------------
+ * PORTRAIT GATE
+ * The game is designed for landscape. Rather than let the HUD pile up on
+ * itself in portrait, ask for a rotate. On Android the packaged app will lock
+ * to landscape in the manifest (Phase 6), so this is really for the browser.
+ * ------------------------------------------------------------------------ */
+.rotate-gate {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: none;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--s-4);
+  padding: var(--s-5);
+  text-align: center;
+  background: var(--c-bg);
+}
+
+.rotate-gate__icon {
+  font-size: clamp(40px, 14vw, 72px);
+  animation: rotate-hint 2.4s ease-in-out infinite;
+}
+
+@keyframes rotate-hint {
+  0%, 40% { transform: rotate(0deg); }
+  60%, 100% { transform: rotate(-90deg); }
+}
+
+/* `orientation: portrait` is the honest test here: it is about the shape of
+   the viewport, which is exactly what the layout cares about. */
+@media (orientation: portrait) {
+  .rotate-gate { display: flex; }
+  #app { visibility: hidden; }
+}
+
 /* Respect users who ask for less motion. */
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
     animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
   }
 }

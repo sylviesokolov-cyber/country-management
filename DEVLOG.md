@@ -68,3 +68,58 @@ Template:
   a real game-over screen.
 - Start recruiting the 12 Play Store testers now — it is a 14-day clock and it
   runs in parallel with development (see `ANDROID.md`).
+
+---
+
+## 2026-09-16 — Landscape rework
+
+**Built**
+- **Reoriented the whole game to landscape** after reference screenshots from
+  Rebel Inc. and similar. The old portrait three-row grid (HUD / map / tab bar)
+  is gone.
+- **Full-bleed map with a floating HUD.** The map now fills the screen and the
+  HUD is an overlay layer pinned to the corners: resource chips top-left, date
+  and speed top-right, a vertical Mandate gauge on the right edge, and
+  "Ministry" / "Regions" buttons in the bottom corners. In landscape there is
+  only ~390px of height, so a fixed header and footer were eating a third of
+  the screen.
+- **Regenerated the map** for the new aspect: a 6×3 lattice with two opposite
+  corner cells dropped, giving 16 regions and a country-shaped silhouette
+  instead of a rectangle. Region data was re-laid out to match — capital in the
+  middle, the unstable frontier regions out on the edges.
+- **Region panel moved to the right edge** as a slide-in side panel. A bottom
+  sheet in landscape would have covered nearly everything.
+- **Replaced the bottom tab bar with a full-screen overlay** (`src/ui/tabs.js` →
+  `src/ui/overlay.js`), tabs across the top, matching the shape the reference
+  games use for management screens.
+- **Added a working Regions list** in that overlay — all 16 regions sorted
+  worst-first with their band colour, tap to jump straight to one. Genuinely
+  useful now the map is full-bleed.
+- Mandate gauge is colour-coded green → amber → red off the new
+  `BALANCE.mandate.healthyAbove` / `warnBelow` thresholds.
+- Portrait gate asking the player to rotate; Android will lock to landscape in
+  the manifest at Phase 6 (noted in `ANDROID.md` and `TODO.md`).
+
+**Broke / learned**
+- The HUD layer covered the whole screen, so it swallowed every tap meant for a
+  region. Fixed with `pointer-events: none` on the layer and `auto` on the
+  controls — the standard game-HUD pattern, and worth knowing before building
+  any overlay UI.
+- The corner buttons stretched right across the screen: grid items default to
+  `justify-self: stretch`. Pinned each HUD cluster to its own corner instead.
+- First version of the side panel covered the Mandate gauge and the pause
+  button, and hid whichever region you had just tapped if it was on the right.
+  Fixed by putting the HUD above the panel, insetting the HUD's right side, and
+  shrinking the map into the remaining width — all driven by one class on
+  `#app` and one `--panel-w` custom property, so the three can't disagree.
+- Gauge read as a warning even at 100% because it used the orange "mandate"
+  colour throughout. Now it uses the same green/amber/red band colours the map
+  uses for regions, so the game has one colour language.
+
+**Next**
+- Phase 2, unchanged: Political Capital and Manpower sources and sinks, region
+  stability drift and neglect, unrest spreading to neighbours (the new map's
+  `neighbours` data is ready for it), unlock Garrison, real game-over screen.
+- Possible polish: map pan/zoom, now that the map is full-bleed.
+- Still worth starting now: recruit the 12 Play Store testers (14-day clock).
+
