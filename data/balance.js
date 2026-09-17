@@ -319,10 +319,13 @@
      * `requires` keys understood by the sim:
      *   garrisoned      — the region must (not) have a garrison
      *   stabilityBelow  — the region must be under this stability
-     *   notInRevolt     — the region must not be in open revolt */
+     *   notInRevolt     — the region must not be in open revolt
+     *
+     * `icon` is a sprite id from src/ui/icons.js. */
     actions: {
       invest: {
         id: 'invest',
+        icon: 'invest',
         label: 'Invest',
         blurb: 'Fund local industry. Raises Development — and the upkeep bill.',
         cost: { treasury: 120 },
@@ -354,6 +357,7 @@
       },
       publicWorks: {
         id: 'publicWorks',
+        icon: 'works',
         label: 'Public Works',
         blurb: 'Roads, clinics, visible wins. Raises Stability.',
         cost: { treasury: 80 },
@@ -381,6 +385,7 @@
       },
       garrison: {
         id: 'garrison',
+        icon: 'garrison',
         label: 'Garrison',
         blurb: 'Station troops. Holds the region steady, costs you daily.',
         cost: { treasury: 60, manpower: 6 },
@@ -398,6 +403,7 @@
       },
       withdraw: {
         id: 'withdraw',
+        icon: 'withdraw',
         label: 'Withdraw Troops',
         blurb: 'Stand the garrison down. Stops the upkeep, loosens the grip.',
         cost: {},
@@ -409,6 +415,7 @@
       },
       relief: {
         id: 'relief',
+        icon: 'relief',
         label: 'Emergency Relief',
         blurb: 'Spend your standing to pull a region back from the brink.',
         cost: { politicalCapital: 6, treasury: 40 },

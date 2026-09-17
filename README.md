@@ -117,8 +117,12 @@ src/
     alerts.js           the news ticker and the alert toasts
     leaders.js          the leader selection screen
     overlay.js          full-screen management overlay + the region list
+    icons.js            the 46-glyph SVG sprite and its helpers
 tools/
   harness.js            headless balance harness — runs the real sim in Node
+assets/
+  fonts/                Barlow, self-hosted (SIL OFL) — no CDN, works offline
+  LICENSES.md           third-party assets, their licences, and what was rejected
 .github/workflows/
   deploy-pages.yml      auto-deploy to GitHub Pages on push to main
   android-release.yml   manual, signed .aab build (needs Phase 6 first)
@@ -126,6 +130,26 @@ tools/
 
 The one rule worth remembering: **`data/` is what the game is, `src/` is how it
 runs.** Tuning never touches `src/`.
+
+---
+
+## Art and assets
+
+The look is described in `DESIGN.md` §2.9. Two things come from outside the
+project, both permissively licensed, both committed to this repository rather
+than fetched at runtime so the game still opens from `file://` and still works
+offline:
+
+- **Icons** — [Lucide](https://lucide.dev) (ISC), inlined as an SVG sprite in
+  `src/ui/icons.js`. Two glyphs Lucide does not have were drawn for this game
+  in the same geometry.
+- **Typeface** — [Barlow](https://fonts.google.com/specimen/Barlow) by Jeremy
+  Tribby (SIL OFL 1.1), latin subset, in `assets/fonts/`.
+
+Everything else — the map, the leader crests, the palette — is original.
+`assets/LICENSES.md` has the full notices, and also records the sources that
+were evaluated and turned down (Kenney, game-icons.net, itch.io) with the
+reasons, so nobody repeats the search.
 
 ---
 

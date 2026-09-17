@@ -3,6 +3,14 @@
  * ----------------------------------------------------------------------------
  * Six leaders. Each is three things:
  *
+ * Each also carries a `crest` and an `accent`, added in Phase 5's art pass.
+ * The crest names one of the geometric emblems drawn in src/ui/leaders.js —
+ * there are no image files, so a seventh leader is still purely a data edit —
+ * and the accent is the colour that emblem and the card's edge are painted in.
+ * The selection screen is the first thing a player sees and it was six
+ * identical dark rectangles; six emblems in six colours is what makes them
+ * six people.
+ *
  *   buff      — what you are good at
  *   handicap  — what it cost you to be good at that
  *   mechanic  — one rule that works DIFFERENTLY for you than for anyone else
@@ -48,7 +56,7 @@
 
   Mandate.LEADERS = [
     {
-      id: 'marshal', difficulty: 3,
+      id: 'marshal', crest: 'chevrons', accent: '#e0704a', difficulty: 3,
       name: 'Marshal Adrienne Vosk',
       title: 'The Marshal',
       blurb: 'Came up through the frontier commands. Believes a province held ' +
@@ -76,7 +84,7 @@
     },
 
     {
-      id: 'comptroller', difficulty: 2,
+      id: 'comptroller', crest: 'ledger', accent: '#e0b83c', difficulty: 2,
       name: 'Emeric Tesoro',
       title: 'The Comptroller',
       blurb: 'Twenty years in the Treasury. Knows exactly how long a state can ' +
@@ -117,7 +125,7 @@
     },
 
     {
-      id: 'reformer', difficulty: 1,
+      id: 'reformer', crest: 'sunburst', accent: '#4fc48a', difficulty: 1,
       name: 'Oksana Adranei',
       title: 'The Reformer',
       blurb: 'Elected on a promise to rebuild. Has the patience for it and, so ' +
@@ -165,7 +173,7 @@
     },
 
     {
-      id: 'tribune', difficulty: 4,
+      id: 'tribune', crest: 'wreath', accent: '#7fb5ff', difficulty: 4,
       name: 'Kosta Renholt',
       title: 'The Tribune',
       blurb: 'A street organiser who never learned to sit still. Popular for ' +
@@ -185,7 +193,7 @@
     },
 
     {
-      id: 'engineer', difficulty: 4,
+      id: 'engineer', crest: 'lattice', accent: '#9b8bff', difficulty: 4,
       name: 'Dr Petra Sikora',
       title: 'The Engineer',
       blurb: 'Ran the national works bureau before she ran the country. Thinks ' +
@@ -205,7 +213,7 @@
     },
 
     {
-      id: 'caretaker', difficulty: 1,
+      id: 'caretaker', crest: 'keystone', accent: '#8fa3bd', difficulty: 1,
       name: 'Ansel Brask',
       title: 'The Caretaker',
       blurb: 'Appointed to hold the chair for eighteen months. That was four ' +

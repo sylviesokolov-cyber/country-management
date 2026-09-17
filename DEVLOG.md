@@ -501,3 +501,79 @@ Template:
 - Finish the accessibility pass: a real contrast audit and keyboard focus
   order. Reduced motion, non-colour carriers and live regions are done.
 - Still worth starting: recruit the 12 Play Store testers (14-day clock).
+
+## 2026-09-17 — The art pass: it stops looking like a prototype
+
+**Built**
+- **An icon system.** `src/ui/icons.js` — one sprite, 46 glyphs, all 24×24 /
+  2px / round-cap, all drawn in `currentColor`. Every emoji in the game is
+  gone: the HUD chips, the corner buttons, the overlay tabs, the tech branch
+  headers, the run-log rows, the leader buff/handicap/mechanic marks, the
+  region-panel notes, and the three region actions (which now have icons at
+  all — they were three identical blocks of text).
+- **A typeface.** Barlow, self-hosted, latin subset, six faces, 148KB.
+  Condensed for headings/labels/buttons/region names, regular for body and
+  numbers. The condensed face is what makes "OSSORY STRAITS" fit inside a
+  region at a size you can read.
+- **The map stopped being a debug view.** Regions are gradients lit across the
+  whole viewBox rather than flat fills; the landmass casts a drop shadow onto
+  an actual sea; there is a vignette; the band ramp was regraded to move
+  through hue instead of only brightness; labels are uppercase and tracked;
+  the capital is a star instead of a second dot that looked like the garrison
+  dot.
+- **`terrain` finally does something.** It has sat in `data/regions.js` since
+  Phase 1 as pure flavour "waiting for the systems that will read it". It now
+  draws a faint glyph behind each region name, and it is most of why the map
+  now reads as sixteen *places* rather than sixteen coloured shapes.
+- **Leader crests.** Six geometric emblems in six accent colours, drawn as SVG
+  paths in `src/ui/leaders.js` and keyed by a `crest` name in the data file —
+  so a seventh leader is still a pure data edit. The selection screen is the
+  first thing anybody sees and it was six identical dark rectangles.
+- Elevation tokens (`--e-1/2/3` plus a one-pixel lip), applied to the glass,
+  the modals, the panel and the buttons.
+- `assets/LICENSES.md`, which records the two third-party sources *and* the
+  ones that were evaluated and rejected, with reasons.
+
+**Broke / learned**
+- **Checking the asset sites first was worth it, and the answer was "mostly
+  no".** Kenney's UI packs are CC0 and genuinely good, but they are rounded,
+  colourful and wooden — built for casual and platform games. This is a dark
+  political sim whose reference points are flat and infographic-like, and the
+  pack would have fought the entire screen. game-icons.net is thematically
+  perfect on paper and turns to mud at the 14–16px a HUD chip actually gets.
+  Both are unreachable from this environment anyway. Lucide (ISC, 24×24,
+  built for UI at small sizes) was the right answer and was reachable.
+- **The short-screen rule was backwards and had been since Phase 1.** Under
+  400px tall the HUD dropped the chip ICONS and kept the numbers, which left
+  the player looking at "250 20 12/26 49%" — four unlabelled figures that
+  could have meant anything. A number is useless without knowing which
+  resource it is; an icon is the cheapest possible label. It drops the *rates*
+  now.
+- **A fixed-width `<use>` in a `1fr` grid track sizes the track.** Same class
+  of bug as the toast stack last session: the region labels on the right were
+  disappearing under the Mandate gauge because the map is full-bleed and the
+  HUD floats over it. Fixed by reserving the rail's width as map-layer
+  padding — the SVG re-letterboxes itself, so the country just gets slightly
+  smaller rather than cropped.
+- **An orange ring on an orange region is invisible, and so is a red revolt on
+  a red crisis band.** Both were caught by looking at screenshots rather than
+  at code. The ring got a dark disc behind it; revolt got a hatch. Colour is
+  now never the only carrier of anything.
+- **The crest broke the leader titles.** "The Comptroller" started wrapping
+  after "The" the moment a 42px emblem took the width that had been hiding the
+  problem. One `white-space: nowrap`.
+- A Playwright loop that clicked `#btn-ministry` before each tab hung for two
+  minutes, because that button is a *toggle* — it was opening and closing the
+  overlay five times. Open once, then click tabs.
+
+**Next**
+- Unchanged and still first: **the flat late game.** Development caps out
+  around day 3,000 and the Treasury climbs past 20,000 with nothing to spend
+  it on, while Political Capital pins at its cap.
+- The art pass did not touch the Ministry screens' *layout* — tech, appointees
+  and policies are typographically fixed but structurally the same three
+  lists. The tech tree in particular still reads as four columns of cards
+  rather than as a tree.
+- Sound and haptics are still untouched, and are now the biggest remaining
+  gap between this and something that feels shipped.
+- Finish accessibility: contrast audit and keyboard focus order.

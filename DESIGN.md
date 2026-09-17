@@ -378,6 +378,80 @@ next begins.
 
 ---
 
+### 2.9 The visual language
+
+*Live as of Phase 5's art pass.*
+
+The game was built systems-first and looked it: emoji for icons, flat polygons
+for a country, and the browser's default UI font doing every job. All three are
+the same mistake — using whatever was nearest instead of deciding.
+
+**Nothing is a default any more.**
+
+### Icons
+
+One sprite, 46 glyphs, in `src/ui/icons.js`. All 24×24, 2px stroke, round
+caps, drawn in `currentColor` — so a chip's icon is automatically the chip's
+colour and a disabled button's icon dims with the button, with no per-icon CSS
+anywhere.
+
+Emoji are gone, and the reason is worth keeping: they are a different artist's
+work on every platform, they carry their own colour so they never match a
+palette, and they cannot take a stroke weight. Four of them side by side can
+never look like one set.
+
+The sprite is a string in a JS module rather than an `assets/icons.svg`,
+because `<use href="file.svg#id">` does not resolve from `file://` — and
+opening `index.html` straight off the filesystem is a hard requirement of this
+project.
+
+### Typeface
+
+**Barlow**, self-hosted in `assets/fonts/`, latin subset, two widths doing two
+jobs: Barlow Condensed for headings, HUD labels, buttons and region names,
+Barlow for body text and every number. A CDN `<link>` was rejected outright —
+it breaks `file://`, breaks offline play, and puts a third-party request in a
+packaged Android app.
+
+### The map
+
+The map is the hero and it was reading as a debug view. Four changes fixed
+that, and none of them touched the simulation:
+
+- **Regions are gradients, not flat fills**, lit from above across the whole
+  viewBox rather than per region — so sixteen polygons read as one landscape
+  instead of sixteen tiles.
+- **The landmass casts a shadow onto a sea.** A separate silhouette group
+  casts it, because shadowing the real regions would shadow all sixteen
+  internal borders too.
+- **`terrain` finally does something.** It had sat in `data/regions.js` since
+  Phase 1 as flavour "waiting for the systems that will read it"; it now draws
+  a faint glyph behind each region name. It is the difference between sixteen
+  coloured shapes and sixteen *places*.
+- **The band ramp was regraded** to move through hue as well as brightness.
+  The old mustard and orange were nearly indistinguishable, which on a map
+  that *is* the readout meant the game was failing to report itself.
+
+### Rules that are load-bearing
+
+- **Colour is never the only carrier.** Revolt is a hatch, not a redder red.
+  The stability bands separate in greyscale.
+- **The instrument-panel voice**: condensed, uppercase, tracked, for anything
+  that labels. Sentence case for anything that is read as prose.
+- **Numbers are always tabular**, so a counter never jitters as its digits
+  change.
+- **Depth is three layered tokens** (`--e-1/2/3`) plus a one-pixel lip of
+  light. A single large blur reads as fog; a contact shadow plus an ambient
+  one reads as height.
+- **A seventh leader is still a data edit.** The crests on the selection
+  screen are geometric SVG paths in `src/ui/leaders.js` keyed by a `crest`
+  name in the data file — not six image files.
+
+Third-party licences live in `assets/LICENSES.md`, which also records what was
+evaluated and rejected, so the next session does not re-run the search.
+
+---
+
 ## 3. Layout
 
 **Landscape, phone first**, designed around ~844 × 390. The game is played with

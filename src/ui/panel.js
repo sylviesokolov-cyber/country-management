@@ -75,14 +75,14 @@
      * filling has been told that things are bad and not that they are about
      * to become a different kind of bad. */
     revoltNote = View.node('div', 'state-note state-note--revolt');
-    revoltNote.appendChild(iconSpan('\u{1F525}'));
+    revoltNote.appendChild(iconSpan('revolt'));
     var revoltText = View.node('span');
     revoltText.dataset.memoKey = 'region-revolt';
     revoltNote.appendChild(revoltText);
     bodyEl.appendChild(revoltNote);
 
     unrestNote = View.node('div', 'state-note state-note--unrest');
-    unrestNote.appendChild(iconSpan('\u23F3'));
+    unrestNote.appendChild(iconSpan('unrest'));
     var unrestText = View.node('span');
     unrestText.dataset.memoKey = 'region-unrest';
     unrestNote.appendChild(unrestText);
@@ -94,7 +94,7 @@
      * (The Upkeep row above already includes it; this says what it buys.) */
     garrisonNote = document.createElement('div');
     garrisonNote.className = 'garrison-note';
-    garrisonNote.appendChild(iconSpan('\u2696'));
+    garrisonNote.appendChild(iconSpan('garrison'));
     var garrisonText = document.createElement('span');
     garrisonText.textContent = 'Garrisoned: +' +
       Mandate.BALANCE.region.naturalStability.garrisonBonus +
@@ -110,7 +110,7 @@
      * you whether their traits are doing anything where you are looking. */
     governorNote = document.createElement('div');
     governorNote.className = 'garrison-note garrison-note--governor';
-    governorNote.appendChild(iconSpan('\u{1F464}'));
+    governorNote.appendChild(iconSpan('appointees'));
     var governorText = document.createElement('span');
     governorText.dataset.memoKey = 'region-governor';
     governorNote.appendChild(governorText);
@@ -244,11 +244,10 @@
 
   /* --- small markup helpers ------------------------------------------- */
 
-  function iconSpan(char) {
+  function iconSpan(id) {
     var el = document.createElement('span');
     el.className = 'garrison-note__icon';
-    el.setAttribute('aria-hidden', 'true');
-    el.textContent = char;
+    el.appendChild(Mandate.Icons.el(id));
     return el;
   }
 
@@ -354,7 +353,14 @@
     main.className = 'action__main';
     main.innerHTML =
       '<div class="action__label"></div><div class="action__blurb"></div>';
-    main.querySelector('.action__label').textContent = action.label;
+    /* The label line carries the action's icon, so the three region actions
+     * are told apart by shape before they are read. They are the most-tapped
+     * controls in the game and they used to be three identical text blocks. */
+    var labelEl = main.querySelector('.action__label');
+    if (action.icon && Mandate.Icons.has(action.icon)) {
+      labelEl.appendChild(Mandate.Icons.el(action.icon, 'action__icon'));
+    }
+    labelEl.appendChild(document.createTextNode(action.label));
     main.querySelector('.action__blurb').textContent = action.blurb;
 
     var cost = document.createElement('div');

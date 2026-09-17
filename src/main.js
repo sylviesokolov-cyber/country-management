@@ -47,6 +47,12 @@
     Mandate.Sim.refresh(state);
 
     /* --- build the view once --- */
+    /* The icon sprite goes in FIRST: every view below builds elements that
+     * reference it, and `hydrate` swaps the `data-icon` placeholders in
+     * index.html for real glyphs. */
+    Mandate.Icons.inject();
+    Mandate.Icons.hydrate();
+
     Mandate.MapView.build(Util.el('map'), onRegionTap);
     Mandate.Hud.build(onSpeedChange);
     Mandate.Panel.build({ onAction: onRegionAction });

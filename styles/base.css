@@ -11,34 +11,129 @@
  * ========================================================================== */
 
 /* ---------------------------------------------------------------------------
+ * 0. TYPEFACE
+ *
+ * Barlow, self-hosted from `assets/fonts/`. Deliberately NOT a Google Fonts
+ * link: a CDN <link> breaks `file://`, breaks offline play, and puts a
+ * third-party request inside a packaged Android app. Latin subset only.
+ *
+ * Two widths, doing two different jobs:
+ *   Barlow Condensed  headings, HUD labels, buttons, region names — it buys
+ *                     back horizontal space on a 390px-tall landscape phone,
+ *                     and its squarish grotesque shapes read as "instrument
+ *                     panel" rather than "web page".
+ *   Barlow            body text and every number. It has proper tabular
+ *                     figures, which is what stops a resource counter
+ *                     jittering as its digits change.
+ *
+ * `font-display: swap` so a slow first paint shows system text rather than
+ * nothing — on a phone that is the difference between a blank HUD and a
+ * plain one. See assets/LICENSES.md for the licence (SIL OFL 1.1).
+ * ------------------------------------------------------------------------ */
+@font-face {
+  font-family: 'Barlow';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('../assets/fonts/barlow-400.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'Barlow';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url('../assets/fonts/barlow-500.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'Barlow';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url('../assets/fonts/barlow-600.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'Barlow Condensed';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url('../assets/fonts/barlow-condensed-500.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'Barlow Condensed';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url('../assets/fonts/barlow-condensed-600.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'Barlow Condensed';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url('../assets/fonts/barlow-condensed-700.woff2') format('woff2');
+}
+
+/* ---------------------------------------------------------------------------
  * 1. DESIGN TOKENS
  * ------------------------------------------------------------------------ */
 :root {
-  /* --- surfaces & text --- */
-  --c-bg:          #0d1117;
-  --c-surface:     #161b22;
-  --c-surface-2:   #1c2430;
-  --c-surface-3:   #26303d;
-  --c-line:        #2d3846;
-  --c-line-strong: #3d4b5c;
-  --c-text:        #e6edf3;
-  --c-text-dim:    #8b98a8;
-  --c-text-faint:  #5d6b7a;
+  /* --- surfaces & text ---
+     Cooled and deepened from the original near-black greys. The map is the
+     hero and it is warm (ochre through red), so every surface behind and
+     around it is pushed blue: warm-on-cool is what makes the country read as
+     lit rather than as a flat fill on a flat background. */
+  --c-bg:          #070b12;
+  --c-bg-2:        #0c121c;
+  --c-surface:     #121926;
+  --c-surface-2:   #1a2333;
+  --c-surface-3:   #24304260;
+  --c-line:        #27324a;
+  --c-line-strong: #3a4763;
+  --c-text:        #eef3f9;
+  --c-text-dim:    #93a2b8;
+  --c-text-faint:  #64748f;
 
   /* --- resources (each resource keeps one colour everywhere, forever) --- */
-  --c-treasury:    #e3b341;
-  --c-capital:     #a78bfa;
-  --c-manpower:    #58c98a;
-  --c-mandate:     #ff8558;
-  --c-accent:      #58a6ff;
-  --c-danger:      #f0563e;
+  --c-treasury:    #f0c34b;
+  --c-capital:     #b79dff;
+  --c-manpower:    #4fd39a;
+  --c-mandate:     #ff9a6b;
+  --c-accent:      #5fb0ff;
+  --c-danger:      #ff5f47;
 
-  /* --- region stability bands (map fills) --- */
-  --c-band-secure:   #2f9e6a;
-  --c-band-stable:   #74a83f;
-  --c-band-strained: #c99a34;
-  --c-band-unrest:   #cd6f30;
-  --c-band-crisis:   #b03a3a;
+  /* --- region stability bands (map fills) ---
+     Regraded. The old ramp ran green -> mustard -> orange -> red, and the
+     mustard sat so close to the orange that a country in trouble and a
+     country merely coasting looked identical at a glance — which on a map
+     that IS the readout is the whole game going unreported. The new ramp
+     moves through teal and gold instead, so each step changes hue as well as
+     brightness and the five bands separate even in greyscale. */
+  --c-band-secure:   #34b37a;
+  --c-band-stable:   #86c04a;
+  --c-band-strained: #d8a63c;
+  --c-band-unrest:   #e07a35;
+  --c-band-crisis:   #c4433f;
+
+  /* Each band also gets a darker partner, so a region can be painted as a
+     gradient rather than as a flat fill. Flat fills are what made the map
+     read as a debug view. */
+  --c-band-secure-lo:   #1d7a51;
+  --c-band-stable-lo:   #55832c;
+  --c-band-strained-lo: #96701f;
+  --c-band-unrest-lo:   #9c4d18;
+  --c-band-crisis-lo:   #802424;
+
+  /* --- elevation ---
+     Three steps, used consistently: the HUD floats just above the map, the
+     panels sit above the HUD, and the modals sit above everything. Shadows
+     are layered (a tight contact shadow plus a wide ambient one) because a
+     single large blur reads as fog rather than as height. */
+  --e-1: 0 1px 2px rgba(0,0,0,.4), 0 2px 8px rgba(0,0,0,.28);
+  --e-2: 0 2px 4px rgba(0,0,0,.45), 0 8px 24px rgba(0,0,0,.4);
+  --e-3: 0 4px 8px rgba(0,0,0,.5), 0 24px 64px rgba(0,0,0,.55);
+  /* A one-pixel light from above, inside the border. It is the cheapest way
+     to make a dark panel read as a physical surface instead of a hole. */
+  --e-lip: inset 0 1px 0 rgba(255,255,255,.06);
 
   /* --- spacing scale: use these, never raw pixels --- */
   --s-1: 4px;
@@ -69,9 +164,17 @@
      and the map (which shrinks so the country stays fully visible). */
   --panel-w: clamp(280px, 40%, 380px);
 
-  --font-ui: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
-  /* Tabular numerals stop resource counters from jittering as digits change */
-  --font-num: ui-monospace, 'SF Mono', 'Roboto Mono', Menlo, monospace;
+  --font-ui: 'Barlow', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  /* Headings, HUD labels, buttons, region names. */
+  --font-display: 'Barlow Condensed', 'Barlow Semi Condensed', system-ui, sans-serif;
+  /* Numbers. Barlow's own tabular figures rather than a monospace family: a
+     true monospace next to a grotesque always reads as a terminal, and this
+     is an instrument panel. `font-variant-numeric: tabular-nums` (set
+     wherever this is used) is what actually stops counters jittering. */
+  --font-num: 'Barlow', system-ui, sans-serif;
+
+  /* Uppercase micro-labels are set with tracking, always this much. */
+  --track-label: 0.08em;
 }
 
 /* ---------------------------------------------------------------------------
@@ -86,6 +189,26 @@
    hidden. That exact bug shipped Garrison and Withdraw Troops side by side in
    the region panel. One rule here kills it everywhere. */
 [hidden] { display: none !important; }
+
+/* Numbers are tabular everywhere they appear, so a counter never jitters as
+   its digits change width. Declared once here rather than remembered at each
+   of the ~30 call sites. */
+.num, .chip__value, .chip__rate, .gauge__value, .gauge__rate,
+.stat__value, .action__price, .veil-spend__value, .why__value {
+  font-family: var(--font-num);
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: 'tnum' 1;
+}
+
+/* Small uppercase labels — the instrument-panel voice. */
+.label {
+  font-family: var(--font-display);
+  font-size: var(--f-xs);
+  font-weight: 600;
+  letter-spacing: var(--track-label);
+  text-transform: uppercase;
+  color: var(--c-text-faint);
+}
 
 html, body {
   margin: 0;
@@ -157,7 +280,7 @@ svg { touch-action: manipulation; }
   position: absolute;
   inset: 0;
   overflow: hidden;
-  background: radial-gradient(120% 120% at 50% 40%, #141d29 0%, var(--c-bg) 75%);
+  /* The sea itself is in ui.css, next to the map rules it belongs with. */
 }
 
 /* ---------------------------------------------------------------------------
@@ -216,15 +339,47 @@ svg { touch-action: manipulation; }
   -webkit-overflow-scrolling: touch;
 }
 
-/* Frosted panel look, shared by every floating HUD element. */
+/* ---------------------------------------------------------------------------
+ * ICONS
+ * One rule for all 46. They inherit their size from the text beside them and
+ * their colour from `currentColor`, so a treasury chip's icon is the treasury
+ * colour and a disabled button's icon dims with the button — without a single
+ * per-icon style anywhere in the project.
+ * ------------------------------------------------------------------------ */
+.icon {
+  width: 1em;
+  height: 1em;
+  flex: none;
+  display: inline-block;
+  vertical-align: -0.125em;   /* sits on the text baseline, not below it */
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  /* Never swallow a tap meant for the button the icon is inside. */
+  pointer-events: none;
+}
+
+/* A few places want a heavier or lighter weight than the 2px default. */
+.icon--bold { stroke-width: 2.4; }
+.icon--fine { stroke-width: 1.6; }
+
+/* Frosted panel look, shared by every floating HUD element.
+   Three things make this read as a physical surface rather than a dark
+   rectangle: the blur behind it, the layered shadow beneath it, and the
+   one-pixel lip of light along its top edge. Drop any of the three and it
+   flattens straight back out. */
 .glass {
-  background: rgba(13, 17, 23, 0.82);
+  background:
+    linear-gradient(180deg, rgba(30, 41, 61, 0.72) 0%, rgba(10, 15, 24, 0.78) 100%);
   border: 1px solid var(--c-line);
   border-radius: var(--r-md);
+  box-shadow: var(--e-2), var(--e-lip);
   /* Progressive enhancement: a browser without backdrop-filter just gets the
-     solid background above, which is already readable. */
-  backdrop-filter: blur(10px) saturate(1.2);
-  -webkit-backdrop-filter: blur(10px) saturate(1.2);
+     gradient above, which is already readable. */
+  backdrop-filter: blur(12px) saturate(1.25);
+  -webkit-backdrop-filter: blur(12px) saturate(1.25);
 }
 
 /* ---------------------------------------------------------------------------

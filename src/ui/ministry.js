@@ -115,7 +115,8 @@
     var column = node('div', 'branch');
 
     var head = node('div', 'branch__head');
-    var icon = node('span', 'branch__icon', branch.icon);
+    var icon = node('span', 'branch__icon');
+    icon.appendChild(Mandate.Icons.el(branch.icon));
     icon.setAttribute('aria-hidden', 'true');
     head.appendChild(icon);
     head.appendChild(node('span', null, branch.label));
@@ -145,7 +146,9 @@
 
     var side = node('div', 'tech__side');
     if (status === 'done') {
-      side.appendChild(node('span', 'tech__tick', '✓'));
+      var tick = node('span', 'tech__tick');
+      tick.appendChild(Mandate.Icons.el('done'));
+      side.appendChild(tick);
     } else {
       side.appendChild(node('span', 'tech__cost', techNode.cost + ' pc'));
       side.appendChild(node('span', 'tech__days', techNode.days + 'd'));

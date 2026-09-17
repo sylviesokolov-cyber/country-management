@@ -144,8 +144,10 @@
    * ====================================================================== */
 
   var KIND_ICONS = {
-    event: '❕', tech: '⚙', ministry: '\u{1F464}', policy: '\u{1F4DC}',
-    effect: '⏳', win: '★', lose: '†', system: 'ℹ',
+    event: 'events', tech: 'tech', ministry: 'appointees', policy: 'policies',
+    effect: 'time', win: 'best', lose: 'warning', system: 'info',
+    /* Phase 5's two new kinds. */
+    revolt: 'revolt', order: 'done',
   };
 
   Events.renderLog = function (body, state) {
@@ -192,8 +194,9 @@
       var row = node('div', 'log-row');
       row.dataset.kind = entry.kind;
 
-      var icon = node('span', 'log-row__icon', KIND_ICONS[entry.kind] || '·');
-      icon.setAttribute('aria-hidden', 'true');
+      var icon = node('span', 'log-row__icon');
+      icon.dataset.kind = entry.kind;
+      icon.appendChild(Mandate.Icons.el(KIND_ICONS[entry.kind] || 'info'));
       row.appendChild(icon);
 
       var body_ = node('div', 'log-row__body');

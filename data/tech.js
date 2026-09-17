@@ -49,10 +49,14 @@
   Mandate.TECH = {
     /* Branch order here is the column order in the Tech tab. */
     branches: [
-      { id: 'economy',        label: 'Economy',        icon: '\u{1F4B0}' },
-      { id: 'infrastructure', label: 'Infrastructure', icon: '\u{1F3D7}' },
-      { id: 'governance',     label: 'Governance',     icon: '\u{1F3DB}' },
-      { id: 'security',       label: 'Security',       icon: '\u{1F6E1}' },
+      /* `icon` is a sprite id from src/ui/icons.js, not a character. It was an
+       * emoji until Phase 5's art pass: emoji are a different artist's work on
+       * every platform and carry their own colour, so four of them side by
+       * side can never look like one set. */
+      { id: 'economy',        label: 'Economy',        icon: 'treasury' },
+      { id: 'infrastructure', label: 'Infrastructure', icon: 'works' },
+      { id: 'governance',     label: 'Governance',     icon: 'capital' },
+      { id: 'security',       label: 'Security',       icon: 'garrison' },
     ],
 
     nodes: [

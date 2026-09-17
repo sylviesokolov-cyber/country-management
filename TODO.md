@@ -179,10 +179,16 @@ Tick items off as they land, and note anything deferred in `DEVLOG.md`.
       this is the first thing to do next
 - [ ] Manual save / restart controls (a Settings tab). The corrupt-save half of
       this item is done; the player-facing half is not
+- [x] **The art pass.** The game was built systems-first and looked it. Now:
+      a 46-glyph icon sprite (`src/ui/icons.js`) replacing every emoji, a real
+      typeface (Barlow, self-hosted), a map with gradients, a sea, a drop
+      shadow and terrain glyphs, a regraded band ramp, elevation tokens, and a
+      geometric crest per leader. See `DESIGN.md` §2.9 and `assets/LICENSES.md`
 - [ ] Finish the accessibility pass. Done so far: reduced motion is respected
       globally, revolt is carried by a hatch rather than by colour alone, the
-      gauge is a real button with `aria-expanded`, toasts and the ticker are
-      live regions, and a region announces its revolt to a screen reader.
+      band ramp now separates in greyscale, the gauge is a real button with
+      `aria-expanded`, toasts and the ticker are live regions, and a region
+      announces its revolt to a screen reader.
       Still to do: a real contrast audit, and keyboard focus order
 - [ ] Sound/haptics (optional — `navigator.vibrate` on key actions)
 - [ ] Test on a small phone (667×375 landscape) and a large one; check

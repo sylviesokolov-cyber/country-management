@@ -69,27 +69,50 @@
   align-items: center;
   gap: var(--s-1);
   white-space: nowrap;
+  /* The chip carries the resource's colour; the icon takes it from
+     `currentColor` and the value overrides to full brightness. One
+     declaration per resource below, instead of one per part. */
+  color: var(--c-text-dim);
 }
 
-.chip__icon { font-size: var(--f-xs); line-height: 1; }
+.chip__icon {
+  display: inline-flex;
+  font-size: var(--f-md);
+  line-height: 1;
+  /* Icons are the quiet half of the chip: the number is what is read, the
+     icon only says which number it is. */
+  opacity: 0.75;
+}
 
 .chip__value {
-  font-family: var(--font-num);
   font-size: var(--f-sm);
-  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  line-height: 1.1;
 }
 
 .chip__rate {
-  font-family: var(--font-num);
   font-size: var(--f-xs);
   color: var(--c-text-faint);
-  font-variant-numeric: tabular-nums;
+  line-height: 1.1;
 }
+
+.chip--treasury  { color: var(--c-treasury); }
+.chip--capital   { color: var(--c-capital); }
+.chip--manpower  { color: var(--c-manpower); }
+.chip--stability { color: var(--c-band-stable); }
 
 .chip--treasury  .chip__value { color: var(--c-treasury); }
 .chip--capital   .chip__value { color: var(--c-capital); }
 .chip--manpower  .chip__value { color: var(--c-manpower); }
 .chip--stability .chip__value { color: var(--c-band-stable); }
+
+/* A hairline between chips. Four numbers in a row with nothing between them
+   read as one number — this is the cheapest possible fix and it makes the
+   cluster read as an instrument panel rather than a debug printout. */
+.chip + .chip {
+  padding-left: var(--s-3);
+  border-left: 1px solid var(--c-line);
+}
 
 /* Austerity: the upkeep bill is about to go unpaid. It turns the Treasury
    chip red because it is the one state the player must not discover late —
@@ -99,14 +122,29 @@
 .chip--austerity .chip__rate { color: var(--c-danger); }
 
 /* On very short landscape screens (phones held sideways are often under
-   400px tall) every row of HUD height is precious. Below that height, drop
-   the Treasury rate and the icons — the numbers alone are still readable and
-   the row is far more likely to fit on one line, which is the real fix for
-   wrapping rather than just making a wrapped state look tidier. */
+   400px tall) every row of HUD height is precious.
+
+   This used to drop the ICONS and keep the numbers, which was exactly the
+   wrong way round: it left the player looking at "250 20 12/26 49%" — four
+   unlabelled figures that could have meant anything. The number is useless
+   without knowing which resource it belongs to, and the icon is the cheapest
+   possible label. So the icons stay and the RATES go: a rate is a nicety,
+   an identity is not. Stacking value over rate also buys the width back
+   without dropping either on taller screens. */
 @media (max-height: 400px) {
   .chip__rate { display: none; }
-  .chip__icon { display: none; }
   .chip-group { gap: var(--s-1) var(--s-2); }
+  .chip + .chip { padding-left: var(--s-2); }
+}
+
+/* Above that, the value and its rate stack, which is both denser and easier
+   to scan than reading them along a line. */
+@media (min-height: 401px) {
+  .chip__stack {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+  }
 }
 
 /* ---------------------------------------------------------------------------
@@ -214,14 +252,32 @@
 }
 
 .gauge__track {
-  width: 10px;
+  width: 14px;
   /* Shrinks on short landscape screens rather than pushing the HUD around. */
   height: clamp(56px, 18vh, 110px);
-  background: var(--c-surface-3);
+  background: rgba(0, 0, 0, 0.45);
   border: 1px solid var(--c-line);
-  border-radius: 999px;
+  border-radius: 3px;
   overflow: hidden;
   position: relative;
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.6);
+}
+
+/* Tick marks down the track, every 20%. A bare bar tells you it is falling;
+   a scaled one tells you how far it has left to fall, which is the question
+   a player actually has. Drawn as a repeating gradient so there is no extra
+   markup and nothing to keep in sync. */
+.gauge__track::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: repeating-linear-gradient(
+    to top,
+    transparent 0,
+    transparent calc(20% - 1px),
+    rgba(0, 0, 0, 0.55) calc(20% - 1px),
+    rgba(0, 0, 0, 0.55) 20%);
 }
 
 /* Anchored to the bottom so the bar drains downward like a fuel gauge. */
@@ -231,24 +287,55 @@
   right: 0;
   bottom: 0;
   height: 100%;
-  background: var(--c-band-secure);
-  transition: height 220ms linear, background-color 400ms linear;
+  background: linear-gradient(180deg,
+    var(--c-band-secure) 0%, var(--c-band-secure-lo) 100%);
+  /* The fill glows faintly in its own colour, so the gauge reads as lit
+     rather than as a painted rectangle — and the glow going from green to
+     red is legible from the corner of the eye. */
+  box-shadow: 0 0 10px -2px var(--c-band-secure);
+  transition: height 220ms linear, background 400ms linear, box-shadow 400ms linear;
 }
 
 /* Health colouring, driven by the thresholds in BALANCE.mandate. Deliberately
    reuses the same green/amber/red the map uses for regions, so one colour
    language covers the whole game. */
-.gauge--warn .gauge__fill  { background: var(--c-band-strained); }
+.gauge--warn .gauge__fill {
+  background: linear-gradient(180deg,
+    var(--c-band-strained) 0%, var(--c-band-strained-lo) 100%);
+  box-shadow: 0 0 10px -2px var(--c-band-strained);
+}
 .gauge--warn .gauge__value { color: var(--c-band-strained); }
-.gauge--low  .gauge__fill  { background: var(--c-danger); }
-.gauge--low  .gauge__value { color: var(--c-danger); }
+
+.gauge--low .gauge__fill {
+  background: linear-gradient(180deg,
+    var(--c-danger) 0%, var(--c-band-crisis-lo) 100%);
+  box-shadow: 0 0 12px -1px var(--c-danger);
+  /* Below the danger threshold the gauge breathes. It is the only ambient
+     animation in the HUD, which is what keeps it meaning something. */
+  animation: gauge-alarm 2s ease-in-out infinite;
+}
+.gauge--low .gauge__value { color: var(--c-danger); }
+
+@keyframes gauge-alarm {
+  0%, 100% { opacity: 1; }
+  50%      { opacity: 0.68; }
+}
 
 .gauge__label {
-  font-size: 9px;
-  letter-spacing: 0.02em;
+  font-family: var(--font-display);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: var(--track-label);
   white-space: nowrap;
   color: var(--c-text-faint);
   text-transform: uppercase;
+}
+
+.gauge__value {
+  font-family: var(--font-num);
+  font-size: var(--f-lg);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
 }
 
 /* ---------------------------------------------------------------------------
@@ -305,19 +392,43 @@
 /* Each region is a single <polygon>. Fill comes from a CSS custom property set
    per band, so the simulation only ever has to set one class. */
 .region {
-  fill: var(--region-fill, var(--c-band-strained));
-  stroke: #0b1016;
-  stroke-width: 1.5;
+  /* A GRADIENT, not a flat colour. `--region-fill` still drives everything —
+     one class per band, set by the sim — but it now points at a gradient
+     built in src/ui/map.js rather than at a hex value, so the country is lit
+     from above as one piece. */
+  fill: var(--region-fill, url(#band-strained));
+  /* Internal borders are a light hairline rather than a heavy black one.
+     Black outlines at 1.5px made the map read as stained glass; what the
+     player needs to see is the country, with divisions in it. */
+  stroke: rgba(255, 255, 255, 0.14);
+  stroke-width: 1;
   stroke-linejoin: round;
-  transition: fill 400ms linear;
+  transition: fill 400ms linear, filter 200ms ease-out;
   cursor: pointer;
 }
 
-.region--secure   { --region-fill: var(--c-band-secure); }
-.region--stable   { --region-fill: var(--c-band-stable); }
-.region--strained { --region-fill: var(--c-band-strained); }
-.region--unrest   { --region-fill: var(--c-band-unrest); }
-.region--crisis   { --region-fill: var(--c-band-crisis); }
+.region--secure   { --region-fill: url(#band-secure); }
+.region--stable   { --region-fill: url(#band-stable); }
+.region--strained { --region-fill: url(#band-strained); }
+.region--unrest   { --region-fill: url(#band-unrest); }
+.region--crisis   { --region-fill: url(#band-crisis); }
+
+/* The shadow caster: one flat copy of the landmass under the real regions.
+   Its colour never shows — only the blur it feeds — so it just has to be
+   opaque. */
+.region-ghost { fill: #000; }
+
+/* A faint glyph of the region's terrain, behind its name. Low enough not to
+   compete with the label, present enough that the map has texture. */
+.region-terrain {
+  color: rgba(0, 0, 0, 0.3);
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  pointer-events: none;
+}
 
 .region--selected {
   stroke: #ffffff;
@@ -327,21 +438,38 @@
 /* Pressed feedback. Applied on pointerdown so it appears instantly. */
 .region--pressed { filter: brightness(1.35); }
 
+/* Desktop/tablet nicety; harmless on touch, where :hover never fires. */
+@media (hover: hover) {
+  .region:hover { filter: brightness(1.12); }
+}
+
 .region-label {
-  fill: rgba(255, 255, 255, 0.85);
-  font-family: var(--font-ui);
-  font-size: 13px;          /* in SVG user units, so it scales with the map */
+  fill: rgba(255, 255, 255, 0.94);
+  font-family: var(--font-display);
+  font-size: 15px;          /* in SVG user units, so it scales with the map */
   font-weight: 600;
+  /* Uppercase with tracking. A place name set in sentence case reads as a
+     data label; set like this it reads as a map. The condensed face is what
+     makes it fit — "Ossory Straits" in a normal-width 15px does not. */
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
   text-anchor: middle;
   pointer-events: none;     /* labels must never swallow a tap */
   paint-order: stroke;
-  stroke: rgba(0, 0, 0, 0.55);
+  stroke: rgba(0, 0, 0, 0.45);
   stroke-width: 3px;
   stroke-linejoin: round;
 }
 
+/* The capital is a star, not a dot — a dot was indistinguishable from the
+   garrison marker, which is the wrong thing to be ambiguous about. */
 .region-capital {
-  fill: #ffffff;
+  color: rgba(255, 255, 255, 0.92);
+  fill: currentColor;
+  stroke: rgba(0, 0, 0, 0.5);
+  stroke-width: 1.5;
+  stroke-linejoin: round;
+  paint-order: stroke;
   pointer-events: none;
 }
 
@@ -357,6 +485,41 @@
 }
 
 .region-garrison.is-on { display: block; }
+
+/* ---------------------------------------------------------------------------
+ * THE SEA
+ * The map layer's background. A country floating on flat #0d1117 was the
+ * single biggest reason the screen read as a prototype: there was no world
+ * around it, just the absence of one. Two radial washes give the water some
+ * depth and put the light where the land's drop shadow says it is.
+ * ------------------------------------------------------------------------ */
+.map-layer {
+  /* Room on the right for the Mandate rail. The map is full-bleed by design
+     and the HUD floats over it — but a region's NAME disappearing under the
+     gauge is the HUD eating the thing it is there to report on, which is a
+     different matter. The SVG's `preserveAspectRatio: meet` fits the country
+     into whatever box it is given, so a padding here just makes the country
+     slightly smaller rather than cropping it. */
+  padding-right: calc(68px + env(safe-area-inset-right));
+  background:
+    radial-gradient(ellipse 120% 90% at 50% -10%,
+      rgba(64, 104, 160, 0.20) 0%, transparent 60%),
+    radial-gradient(ellipse 100% 80% at 50% 115%,
+      rgba(20, 42, 74, 0.35) 0%, transparent 65%),
+    linear-gradient(180deg, var(--c-bg-2) 0%, var(--c-bg) 100%);
+}
+
+/* A vignette over the whole playfield, so the corners fall away and the HUD
+   chips sitting in them always have something darker behind them. Purely
+   decorative, and it must never eat a tap meant for the map. */
+.map-layer::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: radial-gradient(ellipse 85% 85% at 50% 50%,
+    transparent 40%, rgba(0, 0, 0, 0.55) 100%);
+}
 
 /* ---------------------------------------------------------------------------
  * REGION PANEL — slides in from the right edge.
@@ -1529,6 +1692,7 @@
   align-items: baseline;
   justify-content: space-between;
   gap: var(--s-2);
+  min-width: 0;
 }
 
 .leader__foot { justify-content: flex-end; }
@@ -1565,6 +1729,7 @@
   font: inherit;
   cursor: pointer;
   text-align: center;
+  position: relative;   /* for the chevron affordance below */
 }
 
 .gauge:active { border-color: var(--c-line-strong); }
@@ -1579,10 +1744,26 @@
   line-height: 1;
 }
 
-/* A gauge you can open should look like one. */
-.gauge__label::after {
-  content: ' \2139';
-  color: var(--c-text-faint);
+/* A gauge you can open should look like one — but an information glyph
+   stuck onto the end of the word "MANDATE" was a note-to-self, not a design.
+   A chevron in the corner is the standard affordance and it does not fight
+   the label. */
+.gauge::after {
+  content: '';
+  position: absolute;
+  top: 5px;
+  right: 5px;
+  width: 5px;
+  height: 5px;
+  border-right: 1.5px solid var(--c-text-faint);
+  border-bottom: 1.5px solid var(--c-text-faint);
+  transform: rotate(45deg);
+  transition: border-color 160ms ease-out, transform 200ms ease-out;
+}
+
+.gauge[aria-expanded='true']::after {
+  border-color: var(--c-mandate);
+  transform: rotate(225deg);
 }
 
 /* ---------------------------------------------------------------------------
@@ -1942,4 +2123,312 @@
   font-variant-numeric: tabular-nums;
   color: var(--c-text);
   text-align: right;
+}
+
+/* ===========================================================================
+ * PHASE 5 — THE ART PASS
+ * Styles for the icon system, and the pieces that used to be emoji.
+ * ======================================================================== */
+
+/* --- tech branch headers ------------------------------------------------ */
+.branch__icon {
+  display: inline-flex;
+  font-size: var(--f-md);
+  color: var(--c-accent);
+  opacity: 0.85;
+}
+
+.tech__tick { color: var(--c-band-secure); font-size: var(--f-md); display: inline-flex; }
+
+/* --- overlay tab icons -------------------------------------------------- */
+.overlay__tab-icon {
+  display: inline-flex;
+  font-size: var(--f-md);
+  opacity: 0.7;
+}
+
+.overlay__tab[aria-pressed='true'] .overlay__tab-icon { opacity: 1; }
+
+/* --- corner buttons ----------------------------------------------------- */
+.corner-btn__icon {
+  display: inline-flex;
+  font-size: var(--f-lg);
+  opacity: 0.85;
+}
+
+/* --- run-log rows ------------------------------------------------------- */
+/* The icon is tinted by what KIND of thing happened, so the log can be
+   skimmed for the one red line without reading any of it. */
+.log-row__icon {
+  display: inline-flex;
+  font-size: var(--f-md);
+  color: var(--c-text-faint);
+}
+
+.log-row__icon[data-kind='revolt'],
+.log-row__icon[data-kind='lose']   { color: var(--c-danger); }
+.log-row__icon[data-kind='order'],
+.log-row__icon[data-kind='win'],
+.log-row__icon[data-kind='tech']   { color: var(--c-band-secure); }
+.log-row__icon[data-kind='event']  { color: var(--c-band-strained); }
+.log-row__icon[data-kind='policy'] { color: var(--c-capital); }
+
+/* --- leader buff / handicap / mechanic ---------------------------------- */
+.leader-trait__icon {
+  display: inline-flex;
+  font-size: var(--f-sm);
+}
+
+.leader-trait[data-kind='buff']     .leader-trait__icon { color: var(--c-band-secure); }
+.leader-trait[data-kind='handicap'] .leader-trait__icon { color: var(--c-band-unrest); }
+.leader-trait[data-kind='mechanic'] .leader-trait__icon { color: var(--c-capital); }
+
+/* --- region-panel state notes ------------------------------------------- */
+.garrison-note__icon,
+.state-note__icon {
+  display: inline-flex;
+  font-size: var(--f-md);
+}
+
+.state-note--revolt .garrison-note__icon { color: var(--c-danger); }
+.state-note--unrest .garrison-note__icon { color: var(--c-band-strained); }
+.garrison-note .garrison-note__icon      { color: var(--c-manpower); }
+
+/* --- region action buttons ---------------------------------------------- */
+/* The three region actions are the most-tapped controls in the game and used
+   to be three identical blocks of text. An icon on the label makes them
+   distinguishable by shape before they are read. */
+.action__label {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  font-family: var(--font-display);
+  letter-spacing: 0.01em;
+}
+
+.action__icon { font-size: 1.05em; opacity: 0.8; }
+
+.action[data-action-id='invest']      .action__icon { color: var(--c-accent); }
+.action[data-action-id='publicWorks'] .action__icon { color: var(--c-band-stable); }
+.action[data-action-id='garrison']    .action__icon { color: var(--c-manpower); }
+.action[data-action-id='withdraw']    .action__icon { color: var(--c-text-dim); }
+.action[data-action-id='relief']      .action__icon { color: var(--c-capital); }
+
+.action:disabled .action__icon { color: var(--c-text-faint); }
+
+/* --- leader crests ------------------------------------------------------ */
+/* The selection screen is the first thing a player sees, and it was six
+   identical dark rectangles. The crest is what makes each card a person
+   before a word of it is read. See CRESTS in src/ui/leaders.js. */
+.leader__head {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+}
+
+.leader__heading { flex: 1; min-width: 0; }
+
+.leader__crest {
+  flex: none;
+  width: 42px;
+  height: 42px;
+  display: block;
+  /* Everything inside inherits this, so one custom property colours the whole
+     emblem. */
+  color: var(--leader-accent, var(--c-accent));
+}
+
+.crest { width: 100%; height: 100%; display: block; overflow: visible; }
+
+.crest__ring {
+  fill: color-mix(in srgb, currentColor 12%, transparent);
+  stroke: currentColor;
+  stroke-width: 1.5;
+  opacity: 0.55;
+}
+
+.crest__mark {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 3;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* `color-mix` is well supported but not universal; a flat translucent ring is
+   an acceptable fallback and nothing else depends on it. */
+@supports not (color: color-mix(in srgb, red 50%, blue)) {
+  .crest__ring { fill: rgba(255, 255, 255, 0.06); }
+}
+
+/* The card's own edge takes the accent too, so the crest is not a sticker on
+   a grey box. The difficulty colour stays on the TOP edge, where it was —
+   that ladder is information and must not be traded for decoration. */
+.leader {
+  border-left: 1px solid var(--c-line);
+  box-shadow: var(--e-1);
+  transition: border-color 160ms ease-out, box-shadow 160ms ease-out,
+              transform 160ms ease-out;
+}
+
+.leader:active {
+  border-left-color: var(--leader-accent, var(--c-accent));
+  transform: translateY(1px);
+}
+
+@media (hover: hover) {
+  .leader:hover {
+    border-left-color: var(--leader-accent, var(--c-accent));
+    box-shadow: var(--e-2);
+  }
+}
+
+.leader__title {
+  font-family: var(--font-display);
+  font-size: var(--f-lg);
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  /* Never wrap. "The Comptroller" breaking after "The" turned a name into two
+     lines of nothing, and the crest beside it had just taken the width that
+     used to hide the problem. */
+  white-space: nowrap;
+}
+
+.leader__difficulty {
+  font-family: var(--font-display);
+  font-size: var(--f-xs);
+  font-weight: 600;
+  letter-spacing: var(--track-label);
+  flex: none;
+}
+
+.leader__name {
+  font-size: var(--f-xs);
+  color: var(--c-text-dim);
+  letter-spacing: 0.01em;
+}
+
+/* ---------------------------------------------------------------------------
+ * TYPOGRAPHIC VOICE
+ * Headings, buttons and labels take the condensed display face; body text and
+ * numbers stay in Barlow. Collected here rather than sprinkled through the
+ * component rules so the game has one voice that can be changed in one place.
+ * ------------------------------------------------------------------------ */
+.veil__title,
+.panel__title,
+.overlay__tab,
+.corner-btn,
+.event-card .veil__title,
+.branch__label,
+.tech__name,
+.policy__label,
+.person__name,
+.region-row__name,
+.action__label {
+  font-family: var(--font-display);
+  letter-spacing: 0.01em;
+}
+
+.veil__title {
+  font-size: var(--f-xl);
+  font-weight: 700;
+}
+
+.panel__subtitle,
+.overlay__tab,
+.gauge__label,
+.stat__label,
+.clock__term {
+  font-family: var(--font-display);
+  font-weight: 600;
+  letter-spacing: var(--track-label);
+  text-transform: uppercase;
+}
+
+/* The date is the one piece of chrome that should read as a readout rather
+   than a label, so it keeps sentence case and tabular figures. */
+.clock__date {
+  font-family: var(--font-num);
+  font-variant-numeric: tabular-nums;
+  font-size: var(--f-md);
+  font-weight: 500;
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+/* ---------------------------------------------------------------------------
+ * MODAL SURFACES
+ * The event card is the game's one interruption and the end-of-term screen is
+ * its last word. Both were flat rectangles the same colour as everything
+ * else; they should read as the most important thing on the screen, because
+ * at the moment they appear they are.
+ * ------------------------------------------------------------------------ */
+.veil__card,
+.event-card {
+  background:
+    linear-gradient(180deg, var(--c-surface-2) 0%, var(--c-surface) 46%);
+  box-shadow: var(--e-3), var(--e-lip);
+  border-color: var(--c-line-strong);
+}
+
+/* A coloured edge along the top. The event card's is amber because an event
+   is a demand on your attention; the end-of-term card takes the mandate
+   colour, because that is what ran out. */
+.event-card { border-top: 2px solid var(--c-band-strained); }
+.veil__card { border-top: 2px solid var(--c-mandate); }
+
+.event-card__day {
+  font-family: var(--font-display);
+  font-weight: 600;
+  letter-spacing: var(--track-label);
+  text-transform: uppercase;
+  color: var(--c-text-faint);
+}
+
+/* The choices are the decision; they should look pressable rather than like
+   paragraphs with a price beside them. */
+.choice {
+  border: 1px solid var(--c-line);
+  box-shadow: var(--e-1);
+  transition: border-color 140ms ease-out, background-color 140ms ease-out,
+              transform 140ms ease-out;
+}
+
+.choice:not(:disabled):active {
+  transform: translateY(1px);
+  border-color: var(--c-line-strong);
+}
+
+@media (hover: hover) {
+  .choice:not(:disabled):hover {
+    border-color: var(--c-line-strong);
+    background: var(--c-surface-2);
+  }
+}
+
+.choice__label { font-family: var(--font-display); font-size: var(--f-md); }
+
+/* --- the overlay and the side panel get the same treatment -------------- */
+.overlay, .side-panel {
+  background: linear-gradient(180deg, var(--c-bg-2) 0%, var(--c-bg) 100%);
+}
+
+.side-panel { box-shadow: var(--e-3); }
+
+/* --- speed and corner buttons ------------------------------------------- */
+.corner-btn {
+  font-family: var(--font-display);
+  font-size: var(--f-md);
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  box-shadow: var(--e-1), var(--e-lip);
+  transition: background-color 140ms ease-out, transform 120ms ease-out;
+}
+
+.corner-btn:active { transform: translateY(1px); }
+
+.speed__btn {
+  font-family: var(--font-display);
+  font-weight: 600;
+  transition: background-color 140ms ease-out, color 140ms ease-out;
 }

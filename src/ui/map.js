@@ -16,6 +16,9 @@
 
   var Map = {};
   var SVG_NS = 'http://www.w3.org/2000/svg';
+  /* Read off the geometry's viewBox so the band gradients span the country
+   * rather than a number written twice. */
+  var VIEW_HEIGHT = 450;
 
   /* id -> <path> element, so render() never has to search the DOM. */
   var regionNodes = Object.create(null);
@@ -50,8 +53,71 @@
    * so the palette stays entirely in base.css — a `fill="#f0563e"` in this
    * file would be the only raw colour in the project.
    */
+  /**
+   * One linear gradient per stability band, plus the hatch and the drop
+   * shadow. Built in JS rather than written into index.html because the band
+   * list lives in BALANCE — adding a sixth band should not mean editing
+   * markup.
+   *
+   * The gradients are what stop the map reading as a debug view. A flat fill
+   * has no light in it; a region lit from above has a top and a bottom, and
+   * sixteen of them together read as terrain rather than as a chart.
+   */
+  function buildBandGradients(defs) {
+    Mandate.BALANCE.stabilityBands.forEach(function (band) {
+      var gradient = document.createElementNS(SVG_NS, 'linearGradient');
+      gradient.setAttribute('id', 'band-' + band.id);
+      /* objectBoundingBox on a per-region basis would light each region
+       * separately and make the map look like scales. userSpaceOnUse over the
+       * whole viewBox lights the COUNTRY once, from above — which is what a
+       * landscape actually does. */
+      gradient.setAttribute('gradientUnits', 'userSpaceOnUse');
+      gradient.setAttribute('x1', '0');
+      gradient.setAttribute('y1', '0');
+      gradient.setAttribute('x2', '0');
+      gradient.setAttribute('y2', VIEW_HEIGHT);
+
+      var top = document.createElementNS(SVG_NS, 'stop');
+      top.setAttribute('offset', '0');
+      top.setAttribute('class', 'band-stop band-stop--hi');
+      top.style.stopColor = 'var(--c-band-' + band.id + ')';
+
+      var bottom = document.createElementNS(SVG_NS, 'stop');
+      bottom.setAttribute('offset', '1');
+      bottom.setAttribute('class', 'band-stop band-stop--lo');
+      bottom.style.stopColor = 'var(--c-band-' + band.id + '-lo)';
+
+      gradient.appendChild(top);
+      gradient.appendChild(bottom);
+      defs.appendChild(gradient);
+    });
+  }
+
+  /** The soft shadow that lifts the whole landmass off the sea. */
+  function buildLandShadow(defs) {
+    var filter = document.createElementNS(SVG_NS, 'filter');
+    filter.setAttribute('id', 'land-shadow');
+    /* Generous bounds: the default -10%/120% box clips a blur this wide and
+     * leaves a visible straight edge along the coast. */
+    filter.setAttribute('x', '-20%');
+    filter.setAttribute('y', '-20%');
+    filter.setAttribute('width', '140%');
+    filter.setAttribute('height', '140%');
+
+    var blur = document.createElementNS(SVG_NS, 'feDropShadow');
+    blur.setAttribute('dx', '0');
+    blur.setAttribute('dy', '6');
+    blur.setAttribute('stdDeviation', '10');
+    blur.setAttribute('flood-color', '#000');
+    blur.setAttribute('flood-opacity', '0.55');
+    filter.appendChild(blur);
+    defs.appendChild(filter);
+  }
+
   function buildDefs() {
     var defs = document.createElementNS(SVG_NS, 'defs');
+    buildBandGradients(defs);
+    buildLandShadow(defs);
     var pattern = document.createElementNS(SVG_NS, 'pattern');
     pattern.setAttribute('id', 'hatch-revolt');
     pattern.setAttribute('patternUnits', 'userSpaceOnUse');
@@ -81,11 +147,24 @@
   Map.build = function (svgEl, onRegionTap) {
     var geo = Mandate.MAP_GEOMETRY;
     svgEl.setAttribute('viewBox', geo.viewBox);
+    VIEW_HEIGHT = parseFloat(geo.viewBox.split(/\s+/)[3]) || VIEW_HEIGHT;
 
     svgEl.appendChild(buildDefs());
 
-    /* Two groups so every label paints above every region, regardless of the
-     * order regions are drawn in. */
+    /* Three groups, painted in this order:
+     *   silhouette  one copy of every region, no stroke, used only to cast
+     *               the drop shadow. Casting it from the real regions would
+     *               shadow each of the sixteen INTERNAL borders too and turn
+     *               the country into a pile of tiles.
+     *   shapes      the regions themselves
+     *   labels      names and markers, above everything regardless of the
+     *               order regions happen to be drawn in
+     */
+    var silhouette = document.createElementNS(SVG_NS, 'g');
+    silhouette.setAttribute('class', 'map__silhouette');
+    silhouette.setAttribute('filter', 'url(#land-shadow)');
+    silhouette.setAttribute('aria-hidden', 'true');
+
     var shapes = document.createElementNS(SVG_NS, 'g');
     var labels = document.createElementNS(SVG_NS, 'g');
 
@@ -117,6 +196,31 @@
 
       shapes.appendChild(poly);
       regionNodes[shape.id] = poly;
+
+      /* The shadow caster. Same points, no interaction, no stroke — the
+       * regions share their edge points exactly, so sixteen overlapping
+       * copies read as one landmass. */
+      var ghost = document.createElementNS(SVG_NS, 'polygon');
+      ghost.setAttribute('points', shape.points);
+      ghost.setAttribute('class', 'region-ghost');
+      silhouette.appendChild(ghost);
+
+      /* A faint terrain glyph behind the label. `terrain` has been sitting in
+       * data/regions.js since Phase 1 as pure flavour "waiting for the
+       * systems that will read it" — nothing ever did. It costs one <use> per
+       * region and it is the difference between sixteen coloured shapes and
+       * sixteen PLACES: the coast reads as coast, the highlands read as
+       * highlands, and the map stops being a chart. */
+      if (def.terrain && Mandate.Icons && Mandate.Icons.has(def.terrain)) {
+        var terrain = document.createElementNS(SVG_NS, 'use');
+        terrain.setAttribute('href', '#i-' + def.terrain);
+        terrain.setAttribute('class', 'region-terrain');
+        terrain.setAttribute('x', shape.labelAt.x - 13);
+        terrain.setAttribute('y', shape.labelAt.y + 8);
+        terrain.setAttribute('width', '26');
+        terrain.setAttribute('height', '26');
+        labels.appendChild(terrain);
+      }
 
       var label = document.createElementNS(SVG_NS, 'text');
       label.setAttribute('x', shape.labelAt.x);
@@ -164,17 +268,22 @@
       labels.appendChild(garrison);
       garrisonNodes[shape.id] = garrison;
 
-      /* A small dot marks the capital. Flagged in data/regions.js. */
+      /* A star marks the capital — a dot was indistinguishable from the
+       * garrison dot at a glance, which is a poor way to mark the one region
+       * that is different from all the others. */
       if (def.capital) {
-        var dot = document.createElementNS(SVG_NS, 'circle');
-        dot.setAttribute('cx', shape.labelAt.x);
-        dot.setAttribute('cy', shape.labelAt.y + 12);
-        dot.setAttribute('r', '3.5');
-        dot.setAttribute('class', 'region-capital');
-        labels.appendChild(dot);
+        var star = document.createElementNS(SVG_NS, 'use');
+        star.setAttribute('href', '#i-capitalcity');
+        star.setAttribute('class', 'region-capital');
+        star.setAttribute('x', shape.labelAt.x - 7);
+        star.setAttribute('y', shape.labelAt.y + 6);
+        star.setAttribute('width', '14');
+        star.setAttribute('height', '14');
+        labels.appendChild(star);
       }
     });
 
+    svgEl.appendChild(silhouette);
     svgEl.appendChild(shapes);
     svgEl.appendChild(labels);
   };

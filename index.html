@@ -73,25 +73,31 @@
            would read as a healthy economy right up until the lights went out.
            The chip turns red when the bill is about to go unpaid. -->
       <div class="chip chip--treasury" id="hud-treasury-chip">
-        <span class="chip__icon" aria-hidden="true">&#128176;</span>
-        <span class="chip__value" id="hud-treasury">0</span>
-        <span class="chip__rate" id="hud-treasury-rate">+0/d</span>
+        <span class="chip__icon" data-icon="treasury" aria-hidden="true"></span>
+        <span class="chip__stack">
+          <span class="chip__value" id="hud-treasury">0</span>
+          <span class="chip__rate" id="hud-treasury-rate">+0/d</span>
+        </span>
       </div>
       <div class="chip chip--capital">
-        <span class="chip__icon" aria-hidden="true">&#127963;</span>
-        <span class="chip__value" id="hud-capital">0</span>
-        <span class="chip__rate" id="hud-capital-rate">+0/d</span>
+        <span class="chip__icon" data-icon="capital" aria-hidden="true"></span>
+        <span class="chip__stack">
+          <span class="chip__value" id="hud-capital">0</span>
+          <span class="chip__rate" id="hud-capital-rate">+0/d</span>
+        </span>
       </div>
       <!-- Manpower shows its cap inline as "held/cap": unlike Treasury it
            fills up and stops, so how much room is left is as useful as how
            much there is. -->
       <div class="chip chip--manpower">
-        <span class="chip__icon" aria-hidden="true">&#128101;</span>
-        <span class="chip__value" id="hud-manpower">0</span>
-        <span class="chip__rate" id="hud-manpower-rate">+0/d</span>
+        <span class="chip__icon" data-icon="manpower" aria-hidden="true"></span>
+        <span class="chip__stack">
+          <span class="chip__value" id="hud-manpower">0</span>
+          <span class="chip__rate" id="hud-manpower-rate">+0/d</span>
+        </span>
       </div>
       <div class="chip chip--stability">
-        <span class="chip__icon" aria-hidden="true">&#9878;</span>
+        <span class="chip__icon" data-icon="stability" aria-hidden="true"></span>
         <span class="chip__value" id="hud-stability">0%</span>
       </div>
     </div>
@@ -103,7 +109,7 @@
            on browsers with no Fullscreen API (e.g. iOS Safari) — see
            src/main.js, which feature-detects before showing it. -->
       <button class="fullscreen-btn" id="btn-fullscreen" aria-label="Toggle fullscreen" hidden>
-        <span aria-hidden="true">&#10021;</span>
+        <span data-icon="fullscreen" aria-hidden="true"></span>
       </button>
       <span class="clock__date" id="hud-date">1 Jan 2027</span>
       <!-- How far through the term. A run now has a far end as well as a near
@@ -112,7 +118,7 @@
     <span class="clock__term" id="hud-term">Year 1 of 10</span>
     <!-- data-speed maps straight onto state.speed. -->
       <div class="speed" role="group" aria-label="Game speed">
-        <button class="speed__btn" data-speed="0" aria-pressed="false" aria-label="Pause">&#9208;</button>
+        <button class="speed__btn" data-speed="0" aria-pressed="false" aria-label="Pause"><span data-icon="pause" aria-hidden="true"></span></button>
         <button class="speed__btn" data-speed="1" aria-pressed="true"  aria-label="Normal speed">1&times;</button>
         <button class="speed__btn" data-speed="2" aria-pressed="false" aria-label="Double speed">2&times;</button>
       </div>
@@ -169,14 +175,14 @@
 
     <!-- bottom-left: opens the full-screen management overlay -->
     <button class="hud-bottomleft corner-btn" id="btn-ministry">
-      <span class="corner-btn__icon" aria-hidden="true">&#9881;</span>
+      <span class="corner-btn__icon" data-icon="ministry" aria-hidden="true"></span>
       <span>Ministry</span>
     </button>
 
     <!-- bottom-right: opens the region list -->
     <button class="hud-bottomright corner-btn" id="btn-regions">
       <span>Regions</span>
-      <span class="corner-btn__icon" aria-hidden="true">&#128506;</span>
+      <span class="corner-btn__icon" data-icon="regions" aria-hidden="true"></span>
     </button>
   </div>
 
@@ -197,11 +203,11 @@
        for their management screens. -->
   <section class="overlay" id="overlay" aria-hidden="true" aria-label="Management">
     <div class="overlay__tabs" role="group" aria-label="Sections">
-      <button class="overlay__tab" data-tab="tech"       aria-pressed="false"><span class="overlay__tab-icon" aria-hidden="true">&#9881;</span>Tech</button>
-      <button class="overlay__tab" data-tab="appointees" aria-pressed="false"><span class="overlay__tab-icon" aria-hidden="true">&#128100;</span>Appointees</button>
-      <button class="overlay__tab" data-tab="policies"   aria-pressed="false"><span class="overlay__tab-icon" aria-hidden="true">&#128220;</span>Policies</button>
-      <button class="overlay__tab" data-tab="events"     aria-pressed="false"><span class="overlay__tab-icon" aria-hidden="true">&#10071;</span>Events</button>
-      <button class="overlay__tab" data-tab="regions"    aria-pressed="false"><span class="overlay__tab-icon" aria-hidden="true">&#128506;</span>Regions</button>
+      <button class="overlay__tab" data-tab="tech"       aria-pressed="false"><span class="overlay__tab-icon" data-icon="tech" aria-hidden="true"></span>Tech</button>
+      <button class="overlay__tab" data-tab="appointees" aria-pressed="false"><span class="overlay__tab-icon" data-icon="appointees" aria-hidden="true"></span>Appointees</button>
+      <button class="overlay__tab" data-tab="policies"   aria-pressed="false"><span class="overlay__tab-icon" data-icon="policies" aria-hidden="true"></span>Policies</button>
+      <button class="overlay__tab" data-tab="events"     aria-pressed="false"><span class="overlay__tab-icon" data-icon="events" aria-hidden="true"></span>Events</button>
+      <button class="overlay__tab" data-tab="regions"    aria-pressed="false"><span class="overlay__tab-icon" data-icon="regions" aria-hidden="true"></span>Regions</button>
       <button class="overlay__close" id="overlay-close" aria-label="Close">&times;</button>
     </div>
     <div class="overlay__body scrollable" id="overlay-body"></div>
@@ -289,6 +295,8 @@
 <script src="src/loop.js"></script>
 
 <script src="src/ui/view.js"></script>
+<!-- icons.js must precede every view that draws one. -->
+<script src="src/ui/icons.js"></script>
 <script src="src/ui/map.js"></script>
 <script src="src/ui/hud.js"></script>
 <script src="src/ui/panel.js"></script>
