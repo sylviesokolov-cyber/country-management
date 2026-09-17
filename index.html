@@ -119,14 +119,53 @@
     </div>
 
     <!-- right edge: vertical gauges -->
+    <!-- The gauge is a BUTTON. Tapping it opens the itemised bill below:
+         a meter that drains for reasons the player cannot inspect teaches
+         them nothing, which is the single clearest lesson from the reference
+         games (Rebel Inc. says out loud what is eating your reputation). -->
     <div class="hud-rail rail">
-      <div class="gauge glass" role="progressbar" aria-label="Mandate"
-           aria-valuemin="0" aria-valuemax="100" aria-valuenow="100" id="hud-mandate-gauge">
+      <button class="gauge glass" id="hud-mandate-gauge"
+              aria-label="Mandate — tap to see what is spending it"
+              aria-expanded="false" aria-controls="mandate-why">
         <span class="gauge__value" id="hud-mandate">100</span>
-        <div class="gauge__track"><div class="gauge__fill" id="hud-mandate-fill"></div></div>
+        <span class="gauge__rate" id="hud-mandate-rate">0/d</span>
+        <div class="gauge__track" role="progressbar" aria-label="Mandate remaining"
+             aria-valuemin="0" aria-valuemax="100" aria-valuenow="100"
+             id="hud-mandate-track">
+          <div class="gauge__fill" id="hud-mandate-fill"></div>
+        </div>
         <span class="gauge__label">Mandate</span>
-      </div>
+      </button>
     </div>
+
+    <!-- The itemised Mandate bill. Built by src/ui/hud.js from
+         Sim.mandateBreakdown — the same function that actually charges the
+         meter, so the reasons and the rate cannot disagree. -->
+    <section class="why glass" id="mandate-why" aria-hidden="true"
+             aria-label="What is spending your mandate">
+      <div class="why__head">
+        <div class="panel__title">Where the term is going</div>
+        <button class="panel__close" id="mandate-why-close" aria-label="Close">&times;</button>
+      </div>
+      <div class="why__list" id="mandate-why-list"></div>
+      <p class="why__total" id="mandate-why-total"></p>
+    </section>
+
+    <!-- THE NEWS TICKER — the run log's front page.
+         Phase 4 put the log behind a tab, which meant the country could lose
+         two provinces while the map said nothing at all. Every game in this
+         genre answers that the same way; this is Plague Inc.'s ticker, sat
+         between the two corner buttons where there is otherwise dead space.
+         Tapping it opens the full log. -->
+    <button class="ticker" id="ticker" aria-live="polite" aria-label="Latest news — tap for the full log">
+      <span class="ticker__dot" aria-hidden="true"></span>
+      <span class="ticker__text" id="ticker-text"></span>
+    </button>
+
+    <!-- Alert toasts. They stack, expire on their own, and NEVER pause the
+         game or take the input — events are the game's one interruption and
+         they have earned it. See the header of src/ui/alerts.js. -->
+    <div class="toasts" id="toasts" aria-live="polite"></div>
 
     <!-- bottom-left: opens the full-screen management overlay -->
     <button class="hud-bottomleft corner-btn" id="btn-ministry">
@@ -190,6 +229,13 @@
       <div class="veil__title" id="veil-title">Your term is over</div>
       <p class="veil__reason" id="veil-reason"></p>
       <div class="veil__score" id="veil-score"></div>
+      <!-- The hundred points of Mandate, itemised — ABOVE the stats on
+           purpose. This is the half of the screen that teaches something: the
+           stats below say what the country looked like when you left it, this
+           says what you spent the term on to get there, and on a 390px-tall
+           phone only one of them fits without scrolling. Built by
+           src/main.js from stats.mandateBy. -->
+      <div class="veil-spend" id="veil-spend"></div>
       <dl class="veil__stats" id="veil-stats"></dl>
       <div class="veil__buttons">
         <button class="veil__restart" id="veil-restart">Choose a new leader</button>
@@ -247,6 +293,7 @@
 <script src="src/ui/hud.js"></script>
 <script src="src/ui/panel.js"></script>
 <script src="src/ui/ministry.js"></script>
+<script src="src/ui/alerts.js"></script>
 <script src="src/ui/events.js"></script>
 <script src="src/ui/leaders.js"></script>
 <script src="src/ui/overlay.js"></script>

@@ -178,11 +178,17 @@ svg { touch-action: manipulation; }
      the top — so all four sides matter, and padding the layer once keeps every
      HUD corner clear of the notch and the gesture bar at the same time.
      Requires viewport-fit=cover in the viewport meta tag or env() reports 0. */
+  /* Named so that HUD pieces which sit OUTSIDE the grid flow (the toast
+     stack, the Mandate breakdown — both fixed-width, and a fixed-width item
+     in a grid track forces the whole grid wider than its own padding box)
+     can be positioned against exactly the same edges the grid respects. */
+  --hud-pad-top:    calc(var(--s-2) + env(safe-area-inset-top));
+  --hud-pad-right:  calc(var(--s-2) + env(safe-area-inset-right) + var(--hud-inset-right, 0px));
+  --hud-pad-bottom: calc(var(--s-2) + env(safe-area-inset-bottom));
+  --hud-pad-left:   calc(var(--s-2) + env(safe-area-inset-left));
   padding:
-    calc(var(--s-2) + env(safe-area-inset-top))
-    calc(var(--s-2) + env(safe-area-inset-right) + var(--hud-inset-right, 0px))
-    calc(var(--s-2) + env(safe-area-inset-bottom))
-    calc(var(--s-2) + env(safe-area-inset-left));
+    var(--hud-pad-top) var(--hud-pad-right)
+    var(--hud-pad-bottom) var(--hud-pad-left);
   transition: padding-right 220ms ease-out;
   display: grid;
   /* Three columns, three rows: the six HUD anchors land in the corners and

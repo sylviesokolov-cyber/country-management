@@ -12,6 +12,30 @@ you want to tune isn't in that file, move it there first.
 
 ## How to run a balance pass
 
+**Use `tools/harness.js`.** As of Phase 5 the headless harness lives in the
+repo, and everything below this heading describes the scratch file it
+replaced — kept only because the loader trick it documents is still how the
+harness works.
+
+```
+node tools/harness.js --seeds 12 --compare          # every leader x strategy
+node tools/harness.js --strategy builder --curve    # one run, sampled
+node tools/harness.js --leader marshal --seeds 8    # one leader
+node tools/harness.js --audit                       # modifier keys nothing reads
+```
+
+The summary table's last five columns are the itemised Mandate bill
+(`m:base`, `m:unrest`, `m:revolt`, `m:act`, `m:evt`). They are usually the
+fastest route to *why* a result is what it is — Phase 5's central finding was
+invisible in the scores and obvious in those columns.
+
+Adding a play style is a function in the `STRATEGIES` table. Keep them crude:
+the point is not to play well, it is to play *consistently*, so that a balance
+change shows up as a difference rather than as noise.
+
+<details>
+<summary>The pre-Phase-5 scratch file, for reference</summary>
+
 `src/sim.js` has no DOM dependencies, so the whole simulation runs headless.
 That is the fastest way to see a curve without playing for 45 minutes:
 
@@ -45,6 +69,8 @@ weakest regions — and two of the three structural problems it found were
 invisible in any single run. Each style is just a function called after
 `tick()` that picks a region and calls `M.Sim.applyAction(s, id, actionId)`.
 
+</details>
+
 In the browser, `Mandate.debug.state` is the live state object — handy for
 cheating resources to test a late-run situation without playing to it.
 
@@ -71,10 +97,13 @@ days**.
 
 - Is one day per second (1× = 900ms/tick) the right base pace on a phone, or
   should 1× be slower with 2× as the default play speed?
-- How punishing should neglect be? Rebel Inc. is aggressive about it; too
-  aggressive here and the map becomes whack-a-mole.
-  *(Phase 2: a do-nothing run now ends at ~20 minutes. That feels right for
-  "you did nothing", but it is untested against a real player.)*
+- ~~How punishing should neglect be?~~ **Answered in Phase 5: neglect
+  escalates rather than merely accumulating.** A region below the unrest line
+  banks `unrestDays` and rises in open revolt after 240 of them, and a revolt
+  cannot be bought off — Invest is refused there. A do-nothing run fell from
+  ~25 minutes to ~10. The whack-a-mole risk is answered by the warning: the
+  map fills a countdown ring over those 240 days, so a revolt is always
+  something the player watched coming and chose not to answer.
 - ~~Should Mandate be recoverable at all, or only ever slowed?~~
   **Answered in Phase 2: only ever slowed.** A country above
   `mandate.approvalPivot` stability drains more slowly, down to
@@ -420,3 +449,150 @@ for the Caretaker, and so on), six seeds each:
   bad seed away from feeling arbitrary.
 - Political Capital still pins at its 100 cap late in a well-run term (carried
   over from Phase 3). Events spend PC, which helps, but not enough to matter.
+
+---
+
+## Phase 5 — the harness, the revolt and the price of building (balance v5)
+
+**Everything below is reproducible.** The headless harness is now in the repo
+at `tools/harness.js`, so the scratch file the top of this document describes
+is obsolete — every claim here is a command:
+
+```
+node tools/harness.js --seeds 12 --compare        # the whole table
+node tools/harness.js --strategy builder --curve  # one run, sampled
+node tools/harness.js --audit                     # unread modifier keys
+```
+
+It drives four fixed play styles — `idle`, `patcher`, `builder`, `garrisoner`
+— across every leader and N seeds, answers events, and reports where each
+run's hundred points of Mandate went.
+
+### The finding that reframed the whole phase
+
+The first sweep, against Phase 4's numbers:
+
+```
+idle        0/36   mean score 1255
+patcher     7/36   mean score 7236
+builder     0/36   mean score 9127
+garrisoner  0/36   mean score 8854
+```
+
+**The only strategy that ever served a full term was the one that built
+nothing.** `patcher` holds every region at about 50% stability with Public
+Works forever, develops nothing, and survives; `builder` reaches 80% stability
+and 1,300 development and dies 1,100 days short, every seed.
+
+That is precisely the failure `DESIGN.md` says the entire game exists to
+design against, and it had been shipping since Phase 2. Two previous phases
+*suspected* it — both cut `invest.mandateCost` by guesswork, 0.5 → 0.2 — and
+neither could measure it. The Mandate accounting added this phase found it in
+one line:
+
+```
+comptroller builder   m:base 62   m:actions 35   m:unrest 0
+comptroller patcher   m:base 97   m:actions  0   m:unrest 1
+```
+
+A builder spent **35 of its 100 Mandate on Invest** and got about **13** back
+in approval relief. Building cost three times what it bought.
+
+### Changed
+
+| Number | Was | Now | Why |
+| --- | --- | --- | --- |
+| `actions.invest.mandateCost` | 0.2 | **0** | The one above. There was never a design argument for it either: garrisons cost Mandate because soldiers are unpopular, austerity because unpaid bills are. Roads are not. Development already has its price and it is the right one — every point built raises the upkeep bill forever. |
+| `region.revolt` | — | new | The unrest clock. See below. |
+| `mandate.decayPerRevoltingRegionPerDay` | — | 0.03 | Three revolts cost more per day than the entire baseline. |
+| `publicWorks.fatigue` | — | +35%/use, −0.16%/day, cap ×2.5 | Patch fatigue. |
+| `relief.fatigue` | — | +50%/use, −0.16%/day, cap ×3 | As above, steeper. |
+| `invest.requires.notInRevolt` | — | true | You cannot build in a province that is no longer yours. |
+
+### The revolt, and why garrisons finally work
+
+Phases 3 and 4 both logged the same unresolved item: *garrisons are never
+worth it outside crisis triage, and the honest fix is a crisis you cannot
+invest your way out of.* This is that crisis.
+
+A region below the unrest line banks `unrestDays`; after **240** of them it
+rises in **open revolt**. A revolt destroys development rather than stalling
+it, collapses output to 35%, weighs 2.5× in neighbour contagion, holds its own
+natural stability down by 12, and — the load-bearing rule — **refuses Invest**.
+It ends only above **45%** stability, which is above the unrest line, so a
+province that creeps over the threshold falls straight back in.
+
+The only tools that reach it are Garrison and Emergency Relief. After it
+landed, `garrisoner` went from 0/36 to 18/72, and for the Marshal it is now
+the *best* strategy available (6/12 against builder's 5/12) — the first time
+in the project's history that the leader built around garrisons is best at
+garrisoning.
+
+### Where it ended up
+
+```
+idle        0/72   mean score   713
+patcher    13/72   mean score  7495
+builder    32/72   mean score 15244
+garrisoner 18/72   mean score 12841
+```
+
+The intended hierarchy — build > garrison > patch > idle — holds for the first
+time, and `idle` fell from 1,653 days to 677: doing nothing now loses the
+country in under two years.
+
+### The difficulty ladder, re-measured
+
+Phase 4's ratings were taken from six seeds, which cannot tell 3/6 from 5/6.
+Twelve seeds, `builder`, terms served:
+
+| Leader | Terms served | Rating |
+| --- | --- | --- |
+| Caretaker | 8 / 12 | 1 Forgiving |
+| Reformer | 7 / 12 | 1 Forgiving |
+| Comptroller | 6 / 12 | 2 Steady |
+| Marshal | 5 / 12 | 3 Demanding |
+| Tribune | 3 / 12 | 4 Punishing |
+| Engineer | 3 / 12 | 4 Punishing |
+
+Three leaders needed work to get there, and two of the reasons are worth
+keeping:
+
+- **The Reformer's mechanic evaporated.** It was "Invest costs no Mandate at
+  all" — which this phase made true for everybody. It went from the easiest
+  leader in the game to 0 wins from 24 runs, holding a handicap and nothing
+  else. Rebuilt: its mechanic is now `buildThroughRevolt` (it is the one
+  government that *may* Invest in a province in open revolt), and its buff is
+  development holding 25% more stability, paid for with 12% less Treasury.
+- **Its old buff was a handicap wearing a buff's label.** "Regions correct
+  toward their natural level twice as fast" sounds like a bonus and is not:
+  natural stability starts *below* the unrest line everywhere, so doubling the
+  rate of correction doubles the speed of the opening slide. With revolts in
+  the game that stopped being a quirk and became fatal. It had been mislabelled
+  since Phase 4 and nothing measured it until now.
+- **A handicap has to bite the strategy the game rewards.** The Comptroller's
+  was "Public Works lands 35% weaker", which costs a patcher dearly and a
+  builder nothing — so the moment building became the winning line, the leader
+  the selection screen calls *Punishing* started winning every seed. Replaced
+  with development holding 15% less stability, and the Treasury buff cut from
+  +18% to +10%.
+- The Caretaker's `mandateDecay.mult` went 0.88 → 0.93. A flat 12% off the
+  clock is worth far more now that the baseline is ~85% of a good run's bill
+  instead of ~65%.
+
+### Still open
+
+- **The late game goes flat.** In a won run, development caps out (16 × 100 =
+  1,600) around day 3,000 and the Treasury then climbs to 20,000+ with nothing
+  to spend it on, while Political Capital pins at its cap — that last one
+  carried over from Phase 3 and Phase 4 and is now two problems rather than
+  one. The last 500 days of a good term have no decisions in them. This is the
+  first thing to fix next.
+- Patch fatigue is doing less than it looks: `patcher` is spread across 16
+  regions, so each one cools most of the way back before it is patched again.
+  It is the revolt system, not the fatigue, doing the work of demoting that
+  strategy. Worth either sharpening or admitting.
+- A revolt can raze a frontier region to 0 development, after which nothing but
+  Invest will ever bring it back — and Invest is what a revolt refuses. It
+  resolves (Relief lifts stability, which ends the revolt, which re-permits
+  Invest), but it is a tight corner and no playtest has been near it yet.

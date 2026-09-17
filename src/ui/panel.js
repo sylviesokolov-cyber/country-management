@@ -25,6 +25,8 @@
   var statNodes = {};
   var garrisonNote = null;
   var governorNote = null;
+  var revoltNote = null;
+  var unrestNote = null;
 
   Panel.build = function (handlers) {
     panelEl = Util.el('region-panel');
@@ -66,6 +68,25 @@
     grid.appendChild(buildStat('output', 'Output', {}));
     grid.appendChild(buildStat('upkeep', 'Upkeep', {}));
     bodyEl.appendChild(grid);
+
+    /* --- the unrest clock, and the revolt it leads to --------------------
+     * These sit directly under the stability bar because that is the number
+     * they are about. A player who can see the bar falling but not the clock
+     * filling has been told that things are bad and not that they are about
+     * to become a different kind of bad. */
+    revoltNote = View.node('div', 'state-note state-note--revolt');
+    revoltNote.appendChild(iconSpan('\u{1F525}'));
+    var revoltText = View.node('span');
+    revoltText.dataset.memoKey = 'region-revolt';
+    revoltNote.appendChild(revoltText);
+    bodyEl.appendChild(revoltNote);
+
+    unrestNote = View.node('div', 'state-note state-note--unrest');
+    unrestNote.appendChild(iconSpan('\u23F3'));
+    var unrestText = View.node('span');
+    unrestText.dataset.memoKey = 'region-unrest';
+    unrestNote.appendChild(unrestText);
+    bodyEl.appendChild(unrestNote);
 
     /* Shown only while troops are stationed here — see Panel.render. The
      * daily cost is read from balance rather than written into the text, so
@@ -128,7 +149,9 @@
     setStat('stability', region.stability.toFixed(0), (region.stability / max) * 100);
     setStat('development', region.development.toFixed(0), (region.development / max) * 100);
     setStat('output', region.output.toFixed(2) + '/d', null);
-    setStat('upkeep', '−' + region.upkeep.toFixed(2) + '/d', null);
+    /* Via formatRate so an empty region reads "0.00/d" rather than the
+     * nonsense "−0.00/d" — the exact case that helper was written for. */
+    setStat('upkeep', Util.formatRate(-region.upkeep).replace('-', '\u2212') + '/d', null);
 
     /* The bar takes the region's band colour, the same one the map and the
      * region list use. A fixed green bar would have shown a region in crisis
@@ -141,6 +164,33 @@
     setTrend('stability', region.stabilityTrend, region.naturalStability);
 
     if (garrisonNote) garrisonNote.hidden = !region.garrisoned;
+
+    /* --- revolt / unrest clock ------------------------------------------ */
+    var V = Mandate.BALANCE.region.revolt;
+    if (revoltNote) {
+      revoltNote.hidden = !region.inRevolt;
+      if (region.inRevolt) {
+        View.setText(revoltNote.querySelector('[data-memo-key]'),
+          'In open revolt. Output has collapsed and development is being ' +
+          'destroyed. Order returns at ' + V.endsAbove + '% stability — ' +
+          'troops or emergency relief, not a chequebook.');
+      }
+    }
+    if (unrestNote) {
+      /* Only while the clock is actually running and the revolt has not yet
+       * started. A ring at zero is not news. */
+      var daysLeft = Math.ceil(V.afterDays - (region.unrestDays || 0));
+      var counting = !region.inRevolt && (region.unrestDays || 0) > 0;
+      unrestNote.hidden = !counting;
+      if (counting) {
+        View.setText(unrestNote.querySelector('[data-memo-key]'),
+          Mandate.Sim.isUnstable(region)
+            ? 'Below the unrest line. Open revolt in about ' +
+              Util.formatInt(daysLeft) + ' days if nothing changes.'
+            : 'Recovering from unrest. ' + Util.formatInt(daysLeft) +
+              ' days of patience banked against the next slide.');
+      }
+    }
 
     var governor = Mandate.Sim.governorOf(state, region.id);
     if (governorNote) {
@@ -175,6 +225,15 @@
       var price = formatCost(
         Mandate.Sim.actionCost(state, btn.dataset.actionId, region.id), action.refund);
       if (priceEl.textContent !== price) priceEl.textContent = price;
+
+      /* PATCH FATIGUE has to be visible or it is just a price that mysteriously
+       * went up. The button says how much dearer this province has become for
+       * this action, so "stop patching the same place" is something the player
+       * can read rather than something they have to infer. */
+      var fatigue = Mandate.Sim.actionFatigue(state, btn.dataset.actionId, region.id);
+      btn.classList.toggle('action--fatigued', fatigue > 0.05);
+      View.setText(btn.querySelector('.action__fatigue'),
+        fatigue > 0.05 ? '+' + Math.round(fatigue * 100) + '% here' : '');
 
       var check = Mandate.Sim.canAfford(state, btn.dataset.actionId, region.id);
       var disabled = !check.ok;
@@ -305,6 +364,13 @@
     var price = document.createElement('span');
     price.className = 'action__price';
     cost.appendChild(price);
+
+    /* How much dearer this action has become in THIS region. Filled by
+     * Panel.render; empty and invisible until the province has been leaned
+     * on. See Sim.actionFatigue. */
+    var fatigue = document.createElement('small');
+    fatigue.className = 'action__fatigue';
+    cost.appendChild(fatigue);
 
     var reason = document.createElement('small');
     reason.className = 'action__reason';

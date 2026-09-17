@@ -20,6 +20,14 @@
   var lastHealth = null;
   var lastAusterity = null;
 
+  /* Is the "why is my mandate draining?" panel showing? A camera fact, so it
+   * lives here rather than in the save. */
+  var whyOpen = false;
+  /* The breakdown is rebuilt only when its SHAPE changes — the set of causes
+   * and their rounded rates. Rebuilding six rows every frame would throw away
+   * the memoisation the rest of the HUD depends on. */
+  var lastWhySignature = null;
+
   Hud.build = function (onSpeedChange) {
     els = {
       treasuryChip: Util.el('hud-treasury-chip'),
@@ -33,9 +41,28 @@
       mandate: Util.el('hud-mandate'),
       mandateFill: Util.el('hud-mandate-fill'),
       mandateGauge: Util.el('hud-mandate-gauge'),
+      /* The progressbar role moved onto the track when the gauge became a
+         button — a <button> cannot also be a progressbar, and the value has
+         to live on whichever element carries that role. */
+      mandateTrack: Util.el('hud-mandate-track'),
       date: Util.el('hud-date'),
       term: Util.el('hud-term'),
+      mandateRate: Util.el('hud-mandate-rate'),
+      why: Util.el('mandate-why'),
+      whyList: Util.el('mandate-why-list'),
+      whyTotal: Util.el('mandate-why-total'),
     };
+
+    /* THE GAUGE IS A BUTTON. This is the single most useful thing Phase 5
+     * takes from the reference games: Rebel Inc.'s reputation meter never
+     * simply falls, it tells you in words what is eating it. A bar that
+     * drains for reasons the player cannot inspect teaches them nothing, so
+     * every run they lose is the same run.
+     *
+     * The numbers come from Sim.mandateBreakdown, which is also what actually
+     * charges the meter — so the reasons and the rate cannot drift apart. */
+    View.onTap(els.mandateGauge, function () { Hud.toggleWhy(); });
+    View.onTap(Util.el('mandate-why-close'), function () { Hud.toggleWhy(false); });
 
     speedButtons = Array.prototype.slice.call(document.querySelectorAll('.speed__btn'));
     speedButtons.forEach(function (btn) {
@@ -80,8 +107,8 @@
     var pct = (state.mandate / B.mandate.max) * 100;
     View.setText(els.mandate, Math.round(state.mandate));
     View.setStyle(els.mandateFill, 'height', pct.toFixed(1) + '%');
-    if (els.mandateGauge) {
-      els.mandateGauge.setAttribute('aria-valuenow', Math.round(state.mandate));
+    if (els.mandateTrack) {
+      els.mandateTrack.setAttribute('aria-valuenow', Math.round(state.mandate));
     }
     /* One class on the gauge drives both the bar and the number, so they can
      * never disagree. Thresholds come from balance, not from here. */
@@ -106,6 +133,13 @@
     var year = Math.min(termYears, Math.floor(state.day / 365) + 1);
     View.setText(els.term, 'Year ' + year + ' of ' + termYears);
 
+    /* The rate under the number. Phase 5: the gauge used to show a level with
+     * no sense of how fast it was going, which is the one thing a player
+     * needs in order to pace a term. */
+    View.setText(els.mandateRate, Util.formatRate(state.derived.mandatePerDay) + '/d');
+
+    renderWhy(state);
+
     /* aria-pressed doubles as the CSS hook for the active speed — one source
      * of truth for "which speed is selected". */
     for (var i = 0; i < speedButtons.length; i++) {
@@ -116,6 +150,82 @@
       }
     }
   };
+
+  /* ------------------------------------------------------------------------
+   * "WHERE IS MY MANDATE GOING?"
+   *
+   * One row per cause, biggest first, with the days each one is costing at
+   * today's rate. Days rather than raw decimals on purpose: "0.03/day" is a
+   * number, "about 12 days a year" is a decision. The player is spending a
+   * term, so the term is the unit they should be shown.
+   * ---------------------------------------------------------------------- */
+
+  Hud.toggleWhy = function (force) {
+    whyOpen = force === undefined ? !whyOpen : !!force;
+    View.setOpen(els.why, whyOpen);
+    if (els.mandateGauge) {
+      els.mandateGauge.setAttribute('aria-expanded', whyOpen ? 'true' : 'false');
+    }
+  };
+
+  Hud.closeWhy = function () { Hud.toggleWhy(false); };
+
+  function renderWhy(state) {
+    if (!whyOpen || !els.whyList) return;
+
+    var breakdown = state.derived.mandateBreakdown || { total: 0, lines: [] };
+    var lines = breakdown.lines.slice().sort(function (a, b) {
+      return b.perDay - a.perDay;
+    });
+
+    /* Rebuild only when the itemisation actually changed. The rates move
+     * continuously, so the signature rounds them — otherwise this rebuilds
+     * every frame and the panel can never be read. */
+    var signature = lines.map(function (line) {
+      return line.key + ':' + line.perDay.toFixed(3) + ':' + line.detail;
+    }).join('|');
+    if (signature === lastWhySignature) return;
+    lastWhySignature = signature;
+
+    els.whyList.innerHTML = '';
+    lines.forEach(function (line) {
+      var row = View.node('div', 'why__row');
+      var head = View.node('div', 'why__head');
+      head.appendChild(View.node('div', 'why__label', line.label));
+      head.appendChild(View.node('div', 'why__value', share(line, breakdown) + '%'));
+      row.appendChild(head);
+      if (line.detail) row.appendChild(View.node('div', 'why__detail', line.detail));
+
+      /* A share bar, so the largest cause is obvious without reading. */
+      var bar = View.node('div', 'why__bar');
+      var fill = View.node('div', 'why__fill');
+      fill.style.width = share(line, breakdown) + '%';
+      bar.appendChild(fill);
+      row.appendChild(bar);
+
+      els.whyList.appendChild(row);
+    });
+
+    View.setText(els.whyTotal, breakdown.total > 0
+      ? 'At this rate the term ends in ' +
+        Math.round(state.mandate / breakdown.total).toLocaleString('en-US') + ' days.'
+      : 'Nothing is spending your mandate.');
+  }
+
+  /**
+   * A line's share of today's total drain, as a whole percentage.
+   *
+   * Deliberately a share and not the raw rate. "0.008 per day" is a number
+   * the player cannot act on; "31% of what is costing you the term" is the
+   * thing they actually want to know, which is *which one to go and fix*.
+   * The headline under the list carries the absolute figure — days of term
+   * left at this rate — so nothing is hidden, it is just ranked first by
+   * what is most useful.
+   */
+  function share(line, breakdown) {
+    if (!breakdown.total) return 0;
+    return Math.round((line.perDay / breakdown.total) * 100);
+  }
 
   Mandate.Hud = Hud;
 })(window.Mandate = window.Mandate || {});

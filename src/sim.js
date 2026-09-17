@@ -77,8 +77,12 @@
    */
   Sim.regionOutput = function (state, region) {
     var o = Mandate.BALANCE.region.output;
+    /* A province in open revolt is not a poor province — it is not yours.
+     * Stability alone already thins the take; this is the part of the economy
+     * that simply stops reporting to the capital. */
+    var revolt = region.inRevolt ? Mandate.BALANCE.region.revolt.outputMult : 1;
     return (o.base + region.development * o.perDevelopment) *
-      Sim.stabilityFactor(region) *
+      Sim.stabilityFactor(region) * revolt *
       Mods.mult(Mods.forRegion(state, region.id), 'output.mult');
   };
 
@@ -135,6 +139,71 @@
   };
 
   /* ------------------------------------------------------------------------
+   * REVOLT (Phase 5)
+   *
+   * Unrest has a clock of its own. A region below the unrest line banks
+   * `unrestDays`; past the threshold it stops being a bad province and starts
+   * being somebody else's. See BALANCE.region.revolt for why this exists —
+   * the short version is that without it, neglect was always cheaper to fix
+   * later, and the harness proved that building nothing was the winning move.
+   *
+   * Everything here is read from region.inRevolt rather than recomputed, so
+   * the state a save carries is the state the sim runs on. Deciding whether a
+   * revolt is on happens in exactly one place: updateRevolts(), once a tick.
+   * ---------------------------------------------------------------------- */
+
+  /* There is deliberately no `Sim.isInRevolt()` to mirror `Sim.isUnstable()`:
+   * unrest is a THRESHOLD that has to be computed from a number, whereas a
+   * revolt is a stored fact, and `region.inRevolt` already reads as English.
+   * A wrapper would only invite somebody to write a second one that recomputes
+   * it from stability and disagrees. */
+
+  /** How close this region is to open revolt, 0..1. Drives the map warning. */
+  Sim.revoltProgress = function (region) {
+    var V = Mandate.BALANCE.region.revolt;
+    if (region.inRevolt) return 1;
+    return clamp((region.unrestDays || 0) / V.afterDays, 0, 1);
+  };
+
+  /**
+   * Advance every region's unrest clock and flip revolts on and off.
+   *
+   * Called once per tick, AFTER drift, so a region that was pulled back over
+   * the line today gets credit for it today. Returns the ids that changed, so
+   * the tick can log them — a revolt starting must never be something the
+   * player only notices in the totals.
+   */
+  function updateRevolts(state) {
+    var V = Mandate.BALANCE.region.revolt;
+    var changed = [];
+
+    for (var i = 0; i < state.regions.length; i++) {
+      var region = state.regions[i];
+      var was = !!region.inRevolt;
+
+      if (Sim.isUnstable(region)) {
+        region.unrestDays = (region.unrestDays || 0) + 1;
+      } else {
+        region.unrestDays = Math.max(0, (region.unrestDays || 0) - V.coolPerDay);
+      }
+
+      if (region.inRevolt) {
+        /* A revolt ends only well ABOVE the unrest line. Creeping over the
+         * threshold by a tenth of a point is not order restored. */
+        if (region.stability >= V.endsAbove) {
+          region.inRevolt = false;
+          region.unrestDays = 0;
+        }
+      } else if ((region.unrestDays || 0) >= V.afterDays) {
+        region.inRevolt = true;
+      }
+
+      if (was !== !!region.inRevolt) changed.push(region);
+    }
+    return changed;
+  }
+
+  /* ------------------------------------------------------------------------
    * ADJACENCY
    * The neighbour lists live in data/map-geometry.js, which knows nothing
    * about the game — it just happens to be the file that knows which regions
@@ -169,9 +238,16 @@
     return adjacency[regionId] || [];
   };
 
-  /** How many of this region's neighbours are currently below the unrest line. */
+  /**
+   * The contagion pressure on this region from its neighbours, counted in
+   * "unstable neighbours". A neighbour in open revolt weighs
+   * `revolt.contagionWeight` of them: a burning province does not merely fail
+   * to help the ones beside it, it pulls them in. That weighting is what makes
+   * a revolt something to contain rather than something to come back to.
+   */
   Sim.unstableNeighbours = function (state, region) {
     var ids = Sim.neighboursOf(region.id);
+    var V = Mandate.BALANCE.region.revolt;
     /* Martial Doctrine: a garrisoned region is a firewall. Troops stop unrest
      * CROSSING them, which changes the shape of a crisis rather than its
      * size — a garrison on the right region seals off a whole frontier. */
@@ -181,7 +257,7 @@
       var neighbour = Mandate.State.regionById(state, ids[i]);
       if (!neighbour || !Sim.isUnstable(neighbour)) continue;
       if (firewall && neighbour.garrisoned) continue;
-      count += 1;
+      count += neighbour.inRevolt ? V.contagionWeight : 1;
     }
     return count;
   };
@@ -239,6 +315,10 @@
       /* Trunk Network: what your NEIGHBOURS have built now props this region
        * up. Until this exists the adjacency map can only ever hurt you. */
       neighbourDevelopment(state, region) * Mods.add(m, 'spillover.perDevelopment') +
+      /* A revolt holds itself down. Without this, a region would drift back
+       * out of one on its own the moment its neighbours recovered, and the
+       * whole point is that it does not. */
+      (region.inRevolt ? R.revolt.naturalPenalty : 0) +
       austerity;
     return clamp(level, R.min, R.max);
   };
@@ -262,8 +342,14 @@
    */
   Sim.developmentTrend = function (state, region, shortfallFraction) {
     var R = Mandate.BALANCE.region;
-    if (Mods.on(Mods.of(state), 'austerityHitsMandate')) return -R.developmentDecayPerDay;
-    return -R.developmentDecayPerDay -
+    /* A revolt destroys what is there. This is the one decay that is NOT a
+     * money problem, so Deficit Financing does not exempt it: the province is
+     * being fought over, and no accounting rule changes that. */
+    var revolt = region.inRevolt ? R.revolt.developmentDecayPerDay : 0;
+    if (Mods.on(Mods.of(state), 'austerityHitsMandate')) {
+      return -R.developmentDecayPerDay - revolt;
+    }
+    return -R.developmentDecayPerDay - revolt -
       (shortfallFraction || 0) * R.upkeep.unpaidDevelopmentDecayPerDay;
   };
 
@@ -392,37 +478,95 @@
   };
 
   /**
-   * Mandate lost per day: the baseline above, plus, for every region under
-   * the unrest line, a flat cost for having crossed it at all and a per-point
-   * cost for how far below it has fallen.
+   * WHERE THE TERM IS GOING — the itemised Mandate bill for today.
+   *
+   * Returns `{ total, lines: [{ key, label, perDay, detail }] }`, where the
+   * lines sum to `total`. Zero lines are omitted, so what comes back is
+   * exactly what is actually costing the player something right now.
+   *
+   * This exists because of the single sharpest lesson from the reference
+   * games: Rebel Inc.'s reputation meter never just falls, it tells you in so
+   * many words that "lack of stability is critically affecting your
+   * reputation". A bar that drains for reasons the player cannot inspect is a
+   * bar they learn nothing from, and every run they lose teaches them nothing
+   * about the run they lose next.
+   *
+   * Sim.mandateLossPerDay is now this function's total, so the number on the
+   * gauge and the reasons under it are computed once and cannot disagree —
+   * the same argument as recomputeDerived().
    */
-  Sim.mandateLossPerDay = function (state, shortfallFraction) {
+  Sim.mandateBreakdown = function (state, shortfallFraction) {
     var M = Mandate.BALANCE.mandate;
     var m = Mods.of(state);
-    var loss = Sim.mandateBaselinePerDay(state);
-    var perGarrison = Mods.add(m, 'mandate.perGarrisonPerDay');
+    var lines = [];
+    var i;
 
-    for (var i = 0; i < state.regions.length; i++) {
+    function line(key, label, perDay, detail) {
+      if (!perDay) return;
+      lines.push({ key: key, label: label, perDay: perDay, detail: detail || '' });
+    }
+
+    /* --- the clock itself, after approval ------------------------------- */
+    var approval = averageStability(state) - M.approvalPivot;
+    var baseline = Sim.mandateBaselinePerDay(state);
+    line('baseline', 'The term running down', baseline,
+      approval > 0
+        ? 'slowed by ' + Math.round(approval) + ' points of approval'
+        : 'no approval relief below ' + M.approvalPivot + '% stability');
+
+    /* --- unrest and revolt, counted separately -------------------------- */
+    var unrestLoss = 0, unrestCount = 0;
+    var revoltLoss = 0, revoltCount = 0;
+    for (i = 0; i < state.regions.length; i++) {
       var region = state.regions[i];
-      if (region.stability < M.unstableBelow) {
-        loss += M.decayPerUnstableRegionPerDay +
-          (M.unstableBelow - region.stability) * M.decayPerUnstablePointPerDay;
+      if (region.stability >= M.unstableBelow) continue;
+      unrestCount += 1;
+      unrestLoss += M.decayPerUnstableRegionPerDay +
+        (M.unstableBelow - region.stability) * M.decayPerUnstablePointPerDay;
+      if (region.inRevolt) {
+        revoltCount += 1;
+        revoltLoss += M.decayPerRevoltingRegionPerDay;
       }
-      /* Martial Doctrine: soldiers in the streets cost legitimacy for every
-       * day they stay. Nothing charges this until that node is researched. */
-      if (region.garrisoned) loss += perGarrison;
+    }
+    line('unrest', 'Regions in unrest', unrestLoss,
+      unrestCount + ' below ' + M.unstableBelow + '% stability');
+    line('revolt', 'Provinces in open revolt', revoltLoss,
+      revoltCount + ' no longer governed');
+
+    /* --- soldiers in the streets (Martial Doctrine) --------------------- */
+    var perGarrison = Mods.add(m, 'mandate.perGarrisonPerDay');
+    if (perGarrison) {
+      var garrisons = 0;
+      for (i = 0; i < state.regions.length; i++) {
+        if (state.regions[i].garrisoned) garrisons += 1;
+      }
+      line('garrison', 'Troops deployed', garrisons * perGarrison,
+        garrisons + ' garrison' + (garrisons === 1 ? '' : 's'));
     }
 
-    /* Standing policies with an ongoing Mandate price (censorship). */
-    loss += policyUpkeep(state, 'mandate');
+    /* --- standing policies with an ongoing Mandate price ---------------- */
+    line('policy', 'Standing policies', policyUpkeep(state, 'mandate'),
+      'the price of governing this way');
 
-    /* Deficit Financing: the unpaid share of the bill lands here instead of
-     * on the country. */
+    /* --- Deficit Financing sends the unpaid bill here ------------------- */
     if (shortfallFraction && Mods.on(m, 'austerityHitsMandate')) {
-      loss += shortfallFraction * M.austerityPerShortfallPerDay *
-        Mods.mult(m, 'austerityMandate.mult');
+      line('austerity', 'Deficit financing',
+        shortfallFraction * M.austerityPerShortfallPerDay *
+          Mods.mult(m, 'austerityMandate.mult'),
+        Math.round(shortfallFraction * 100) + '% of the bill unpaid');
     }
-    return loss;
+
+    var total = 0;
+    for (i = 0; i < lines.length; i++) total += lines[i].perDay;
+    return { total: total, lines: lines };
+  };
+
+  /**
+   * Mandate lost per day. A thin wrapper over the itemised breakdown above,
+   * so there is exactly one place that decides what the clock costs.
+   */
+  Sim.mandateLossPerDay = function (state, shortfallFraction) {
+    return Sim.mandateBreakdown(state, shortfallFraction).total;
   };
 
   /**
@@ -455,6 +599,7 @@
     var nationalOutput = 0;
     var upkeep = 0;
     var unstable = 0;
+    var revolting = 0;
 
     for (var i = 0; i < state.regions.length; i++) {
       var region = state.regions[i];
@@ -463,6 +608,7 @@
       nationalOutput += region.output;
       upkeep += region.upkeep;
       if (Sim.isUnstable(region)) unstable += 1;
+      if (region.inRevolt) revolting += 1;
     }
 
     /* The payroll and any standing policy with a daily price are part of the
@@ -495,7 +641,9 @@
     state.derived.politicalCapitalPerDay = Sim.politicalCapitalPerDay(state);
     state.derived.manpowerPerDay = Sim.manpowerPerDay(state);
     state.derived.manpowerCap = Sim.manpowerCap(state);
-    state.derived.mandatePerDay = -Sim.mandateLossPerDay(state, shortfallFraction);
+    /* Set from the breakdown below, so the gauge's rate and its reasons are
+     * literally the same numbers. */
+    state.derived.mandatePerDay = 0;
     state.derived.salaryPerDay = salary;
     state.derived.researchPerDay = Sim.researchPerDay(state);
     state.derived.ministerSlots = Sim.slotsFor(state, 'minister');
@@ -503,7 +651,12 @@
     state.derived.nationalStability = averageStability(state);
     state.derived.nationalDevelopment = totalDevelopment(state);
     state.derived.unstableRegions = unstable;
+    state.derived.regionsInRevolt = revolting;
     state.derived.austerity = austerity;
+    /* Cached so the HUD's "why" popover, the run summary and the harness all
+     * read the same itemisation the gauge was drawn from. */
+    state.derived.mandateBreakdown = Sim.mandateBreakdown(state, shortfallFraction);
+    state.derived.mandatePerDay = -state.derived.mandateBreakdown.total;
   }
 
   /**
@@ -603,17 +756,43 @@
       region.development = clamp(region.development + developmentDeltas[i], R.min, R.max);
     }
 
+    /* --- 4b. The unrest clock ------------------------------------------- */
+    /* AFTER drift, so a region pulled back over the line today gets credit for
+     * it today — and so a revolt that was broken this morning is already over
+     * when the Mandate bill below is counted. */
+    var flipped = updateRevolts(state);
+    for (i = 0; i < flipped.length; i++) {
+      var flippedRegion = flipped[i];
+      var name = (Mandate.State.regionDef(flippedRegion.id) || {}).name || flippedRegion.id;
+      Sim.log(state, flippedRegion.inRevolt ? 'revolt' : 'order',
+        flippedRegion.inRevolt
+          ? name + ' has risen in open revolt. It will not be governed from a chequebook.'
+          : 'Order restored in ' + name + '.');
+      if (flippedRegion.inRevolt) state.stats.revoltsStarted += 1;
+    }
+
+    /* --- 4c. Patch fatigue bleeds off ----------------------------------- */
+    coolFatigue(state);
+
     /* --- 5. Mandate decay ----------------------------------------------- */
     /* The clock the player is always fighting. Baseline decay is constant;
      * unstable regions make it worse, and the worse they get the faster it
      * goes — which is what turns a neglected corner of the map into a run
-     * that ends early. */
-    state.mandate = clamp(
-      state.mandate - Sim.mandateLossPerDay(state, shortfallFraction), 0, B.mandate.max);
+     * that ends early.
+     *
+     * Charged from the itemised breakdown rather than from a bare total, so
+     * the running tally of where the term went is the same arithmetic that
+     * actually moved the meter — the end-of-term screen cannot quietly
+     * disagree with the gauge the player watched all run. */
+    var bill = Sim.mandateBreakdown(state, shortfallFraction);
+    for (i = 0; i < bill.lines.length; i++) {
+      Sim.chargeMandate(state, bill.lines[i].key, bill.lines[i].perDay);
+    }
 
     /* --- 6. Cache derived totals for the UI ----------------------------- */
     recomputeDerived(state);
     if (state.derived.unstableRegions > 0) state.stats.daysInUnrest += 1;
+    if (state.derived.regionsInRevolt > 0) state.stats.daysInRevolt += 1;
 
     /* --- 7. Win and lose ------------------------------------------------ */
     /* Both live here, in the sim, so the UI never has to decide whether the
@@ -622,14 +801,34 @@
      * Losing is checked first: running out of Mandate on the last day of the
      * term is still losing. You have to be standing when the bell goes. */
     if (state.mandate <= B.mandate.gameOverAt) {
-      endRun(state, false, state.derived.unstableRegions > 0
-        ? 'Your mandate ran out with ' + state.derived.unstableRegions +
-          ' region' + (state.derived.unstableRegions === 1 ? '' : 's') + ' in unrest.'
-        : 'Your mandate ran out. The country was calm; your term was not.');
+      endRun(state, false, state.derived.regionsInRevolt > 0
+        ? 'Your mandate ran out with ' + state.derived.regionsInRevolt +
+          ' province' + (state.derived.regionsInRevolt === 1 ? '' : 's') +
+          ' in open revolt.'
+        : state.derived.unstableRegions > 0
+          ? 'Your mandate ran out with ' + state.derived.unstableRegions +
+            ' region' + (state.derived.unstableRegions === 1 ? '' : 's') + ' in unrest.'
+          : 'Your mandate ran out. The country was calm; your term was not.');
     } else if (state.day >= B.mandate.termDays) {
       endRun(state, true,
         'Ten years, start to finish. The country you hand over is the one you made.');
     }
+  };
+
+  /**
+   * Spend Mandate, and remember what it went on.
+   *
+   * EVERY route by which Mandate leaves the player goes through here: the
+   * daily bill, region actions, event choices. That is what makes
+   * `stats.mandateBy` trustworthy enough to show at the end of a run — a
+   * second place that subtracted from `state.mandate` directly would make the
+   * summary a plausible-looking lie, which is worse than no summary at all.
+   */
+  Sim.chargeMandate = function (state, key, amount) {
+    if (!amount) return;
+    state.mandate = clamp(state.mandate - amount, 0, Mandate.BALANCE.mandate.max);
+    if (!state.stats.mandateBy) state.stats.mandateBy = {};
+    state.stats.mandateBy[key] = (state.stats.mandateBy[key] || 0) + amount;
   };
 
   /**
@@ -722,7 +921,8 @@
   Sim.actionCost = function (state, actionId, regionId) {
     var action = Mandate.BALANCE.actions[actionId];
     var m = Mods.forRegion(state, regionId);
-    var mult = Mods.mult(m, 'cost.' + actionId + '.mult');
+    var mult = Mods.mult(m, 'cost.' + actionId + '.mult') *
+      (1 + Sim.actionFatigue(state, actionId, regionId));
     var out = {};
     Object.keys(action.cost || {}).forEach(function (key) {
       var value = Math.round(action.cost[key] * mult);
@@ -730,6 +930,47 @@
     });
     return out;
   };
+
+  /**
+   * PATCH FATIGUE — how much more this action costs here than it did the
+   * first time, as a fraction (0 = full price, 1 = double).
+   *
+   * Stored per region per action in `region.fatigue`, bumped on use and bled
+   * off every day. Only the patch actions declare a `fatigue` block in
+   * balance: Public Works and Emergency Relief get more expensive the more a
+   * province is leaned on, and Invest never does.
+   *
+   * That asymmetry is the design. The harness's verdict on Phase 4 was that
+   * the winning strategy was to build nothing and patch the same provinces
+   * for ten years — which is precisely the idle-game spreadsheet DESIGN.md
+   * says the whole game exists to design against. Rebel Inc. answers the same
+   * problem the same way: every initiative you roll out raises the price of
+   * the next one, so spending your way out of a problem gets worse the longer
+   * you do it. Here the price is per province, so the cheapest move is always
+   * the one you have been avoiding.
+   */
+  Sim.actionFatigue = function (state, actionId, regionId) {
+    var action = Mandate.BALANCE.actions[actionId];
+    if (!action || !action.fatigue) return 0;
+    var region = Mandate.State.regionById(state, regionId);
+    if (!region || !region.fatigue) return 0;
+    return clamp(region.fatigue[actionId] || 0, 0, action.fatigue.max);
+  };
+
+  /** One day of fatigue bleeding off, for every region and every action. */
+  function coolFatigue(state) {
+    var actions = Mandate.BALANCE.actions;
+    for (var i = 0; i < state.regions.length; i++) {
+      var fatigue = state.regions[i].fatigue;
+      if (!fatigue) continue;
+      for (var id in fatigue) {
+        if (!Object.prototype.hasOwnProperty.call(fatigue, id)) continue;
+        if (!actions[id] || !actions[id].fatigue) { delete fatigue[id]; continue; }
+        fatigue[id] -= actions[id].fatigue.coolPerDay;
+        if (fatigue[id] <= 0) delete fatigue[id];
+      }
+    }
+  }
 
   /**
    * What this action costs in MANDATE on this region. A separate function
@@ -829,6 +1070,14 @@
           region.stability >= action.requires.stabilityBelow) {
         return { ok: false, reason: 'Only in unrest' };
       }
+      /* The one rule that makes a revolt a different KIND of problem: you
+       * cannot build in a province that is no longer yours. Troops or
+       * standing, nothing else — unless you are the Reformer, whose whole
+       * mechanic is that they can build through one. */
+      if (action.requires.notInRevolt && region.inRevolt &&
+          !Mods.on(Mods.of(state), 'buildThroughRevolt')) {
+        return { ok: false, reason: 'In open revolt' };
+      }
     }
 
     var effect = Sim.actionEffect(state, actionId, regionId);
@@ -871,10 +1120,8 @@
       if (!Object.prototype.hasOwnProperty.call(action.refund, key)) continue;
       state.resources[key] += action.refund[key];
     }
-    var mandateCost = Sim.actionMandateCost(state, actionId, regionId);
-    if (mandateCost) {
-      state.mandate = clamp(state.mandate - mandateCost, 0, B.mandate.max);
-    }
+    Sim.chargeMandate(state, 'actions',
+      Sim.actionMandateCost(state, actionId, regionId));
 
     /* Apply */
     var effect = Sim.actionEffect(state, actionId, regionId);
@@ -888,6 +1135,15 @@
     }
     if (typeof effect.garrisoned === 'boolean') {
       region.garrisoned = effect.garrisoned;
+    }
+
+    /* Bank the fatigue AFTER paying, so the price the button quoted is the
+     * price that was taken — the next tap is the one that costs more. */
+    if (action.fatigue) {
+      if (!region.fatigue) region.fatigue = {};
+      region.fatigue[actionId] =
+        Math.min((region.fatigue[actionId] || 0) + action.fatigue.perUse,
+          action.fatigue.max);
     }
 
     region.actionsTaken += 1;
@@ -1553,16 +1809,13 @@
       if (!Object.prototype.hasOwnProperty.call(choice.cost, key)) continue;
       state.resources[key] -= choice.cost[key];
     }
-    if (choice.mandateCost) {
-      state.mandate = clamp(
-        state.mandate - choice.mandateCost, 0, Mandate.BALANCE.mandate.max);
-    }
+    Sim.chargeMandate(state, 'events', choice.mandateCost);
 
     /* --- immediate national effects --- */
-    if (effects.mandate) {
-      state.mandate = clamp(
-        state.mandate + effects.mandate, 0, Mandate.BALANCE.mandate.max);
-    }
+    /* An event may GIVE Mandate back — the only thing in the game that can.
+     * Charged as a negative through the same door, so the tally stays a
+     * complete account of the term rather than of its bad news only. */
+    Sim.chargeMandate(state, 'events', -(effects.mandate || 0));
     for (key in effects.resources) {
       if (!Object.prototype.hasOwnProperty.call(effects.resources, key)) continue;
       state.resources[key] += effects.resources[key];

@@ -21,6 +21,21 @@
 .hud-rail        { grid-area: 2 / 3; justify-self: end; align-self: start; }
 .hud-bottomleft  { grid-area: 3 / 1; align-self: end; justify-self: start; }
 .hud-bottomright { grid-area: 3 / 3; align-self: end; justify-self: end; }
+/* The ticker takes the dead space BETWEEN the two corner buttons — the one
+   part of a landscape HUD that was never carrying anything. `min-width: 0`
+   is load-bearing: a grid item's automatic minimum size is its CONTENT, so
+   without it a long headline widens the middle column and shoves the corner
+   buttons off the screen. */
+.ticker          { grid-area: 3 / 2; align-self: end; justify-self: stretch; min-width: 0; }
+
+/* The toast stack and the Mandate breakdown are deliberately NOT grid items.
+   Both have a fixed width, and a fixed-width item in a `1fr` track sets that
+   track's minimum size — which pushed the whole HUD grid wider than its own
+   padding box and slid the Mandate gauge out from under the region panel's
+   inset and straight over the panel. They are positioned against the same
+   named edges the grid's padding uses instead, so they still respect the
+   safe-area insets and the panel inset without participating in sizing. */
+.toasts, .why { position: absolute; }
 
 /* Grid items stretch to fill their track by default, which would smear the
    corner buttons across the screen. `justify-self` above pins each cluster to
@@ -1530,3 +1545,401 @@
   background: linear-gradient(to top, var(--c-surface) 65%, transparent);
 }
 .leader__best[data-empty='true'] { color: var(--c-text-faint); }
+
+
+/* ===========================================================================
+ * PHASE 5 — THE FEEDBACK LAYER
+ * The map now says what is happening to the country without the player
+ * having to open anything. See src/ui/alerts.js for the argument.
+ * ======================================================================== */
+
+/* ---------------------------------------------------------------------------
+ * THE MANDATE GAUGE, now a button
+ * ------------------------------------------------------------------------ */
+.gauge {
+  /* It was a <div>; as a <button> it inherits a UA background and border that
+     would fight the .glass treatment. */
+  appearance: none;
+  -webkit-appearance: none;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+  text-align: center;
+}
+
+.gauge:active { border-color: var(--c-line-strong); }
+
+/* The rate under the number. Without it the gauge showed a level and no sense
+   of how fast it was going, which is the one thing needed to pace a term. */
+.gauge__rate {
+  font-family: var(--font-num);
+  font-size: 9px;
+  font-variant-numeric: tabular-nums;
+  color: var(--c-text-faint);
+  line-height: 1;
+}
+
+/* A gauge you can open should look like one. */
+.gauge__label::after {
+  content: ' \2139';
+  color: var(--c-text-faint);
+}
+
+/* ---------------------------------------------------------------------------
+ * "WHERE THE TERM IS GOING" — the itemised Mandate bill
+ * ------------------------------------------------------------------------ */
+.why {
+  /* Below the clock, to the LEFT of the gauge, never over it: the gauge is
+     what you just tapped and what this panel is about. */
+  top: calc(var(--hud-pad-top) + 46px);
+  right: calc(var(--hud-pad-right) + 64px);
+  max-height: calc(100% - var(--hud-pad-top) - var(--hud-pad-bottom) - 92px);
+  z-index: 2;
+  width: min(320px, 50vw);
+  padding: var(--s-3);
+  display: none;
+  flex-direction: column;
+  gap: var(--s-2);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.why.is-open { display: flex; }
+
+.why__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--s-2);
+}
+
+.why__list { display: flex; flex-direction: column; gap: var(--s-3); }
+
+.why__head + .why__list { margin-top: var(--s-1); }
+
+.why__row { display: flex; flex-direction: column; gap: var(--s-1); }
+
+.why__head,
+.why__row > .why__head { align-items: center; }
+
+.why__row .why__label {
+  font-size: var(--f-sm);
+  color: var(--c-text);
+}
+
+.why__row .why__value {
+  font-family: var(--font-num);
+  font-size: var(--f-sm);
+  font-variant-numeric: tabular-nums;
+  color: var(--c-mandate);
+  white-space: nowrap;
+}
+
+.why__detail {
+  font-size: var(--f-xs);
+  color: var(--c-text-dim);
+}
+
+.why__bar {
+  height: 4px;
+  border-radius: 999px;
+  background: var(--c-surface-3);
+  overflow: hidden;
+}
+
+.why__fill {
+  height: 100%;
+  background: var(--c-mandate);
+  transition: width 220ms ease-out;
+}
+
+/* Pinned to the bottom of the scroll area. On a 375px-tall phone the list can
+   outrun the panel, and this one line — how many days are left at today's
+   rate — is the most useful thing in it; it must not be the thing that gets
+   clipped. */
+.why__total {
+  position: sticky;
+  bottom: calc(var(--s-3) * -1);
+  margin: 0 calc(var(--s-3) * -1) calc(var(--s-3) * -1);
+  padding: var(--s-2) var(--s-3);
+  border-top: 1px solid var(--c-line);
+  background: rgba(13, 17, 23, 0.95);
+  font-size: var(--f-xs);
+  color: var(--c-text-dim);
+}
+
+/* ---------------------------------------------------------------------------
+ * THE NEWS TICKER
+ * One line, bottom-centre, between the corner buttons. Ambient: it never
+ * demands anything, and it is empty (and invisible) until there is news.
+ * ------------------------------------------------------------------------ */
+.ticker {
+  display: none;
+  align-items: center;
+  gap: var(--s-2);
+  min-height: 28px;
+  max-width: 560px;
+  margin: 0 auto;
+  padding: var(--s-1) var(--s-3);
+  border: 1px solid var(--c-line);
+  border-radius: 999px;
+  background: rgba(13, 17, 23, 0.82);
+  backdrop-filter: blur(10px) saturate(1.2);
+  -webkit-backdrop-filter: blur(10px) saturate(1.2);
+  color: var(--c-text-dim);
+  font-family: var(--font-ui);
+  font-size: var(--f-xs);
+  text-align: left;
+  cursor: pointer;
+  /* The map underneath must stay tappable around the text, and the ticker is
+     a wide element sitting over the middle of the country. Clipping it to its
+     own box rather than stretching the full track is what keeps the map
+     usable. */
+  overflow: hidden;
+}
+
+.ticker.is-live { display: flex; }
+
+.ticker__dot {
+  flex: none;
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--c-accent);
+}
+
+.ticker--good .ticker__dot { background: var(--c-band-secure); }
+.ticker--bad  .ticker__dot { background: var(--c-danger); }
+
+.ticker__text {
+  flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Slide-in when a new line arrives, so a change is caught peripherally. */
+.ticker__text--in { animation: ticker-in 320ms ease-out; }
+
+@keyframes ticker-in {
+  from { opacity: 0; transform: translateX(12px); }
+  to   { opacity: 1; transform: none; }
+}
+
+/* On a short landscape phone the corner buttons already own the bottom row;
+   the ticker would squeeze them. Hide it rather than shrink everything —
+   the log is still one tap away in the Events tab. */
+@media (max-height: 380px) {
+  .ticker { display: none !important; }
+}
+
+/* ---------------------------------------------------------------------------
+ * ALERT TOASTS
+ * They stack top-centre, expire on their own, and never take the input.
+ * ------------------------------------------------------------------------ */
+.toasts {
+  /* Under the top row rather than in it, so a toast never lands on the
+     resource chips or the clock. */
+  top: calc(var(--hud-pad-top) + 46px);
+  left: var(--hud-pad-left);
+  right: var(--hud-pad-right);
+  margin-inline: auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+  width: min(340px, 60vw);
+  /* The stack itself must not eat taps aimed at the map behind it — only the
+     toasts inside it do. */
+  pointer-events: none;
+}
+
+.toast {
+  pointer-events: auto;
+  padding: var(--s-2) var(--s-3);
+  border: 1px solid var(--c-line);
+  border-left-width: 3px;
+  border-radius: var(--r-md);
+  background: rgba(13, 17, 23, 0.92);
+  backdrop-filter: blur(10px) saturate(1.2);
+  -webkit-backdrop-filter: blur(10px) saturate(1.2);
+  animation: toast-in 240ms ease-out;
+}
+
+.toast--tappable { cursor: pointer; }
+.toast--tappable:active { background: var(--c-surface-2); }
+
+.toast--bad  { border-left-color: var(--c-danger); }
+.toast--warn { border-left-color: var(--c-band-strained); }
+.toast--good { border-left-color: var(--c-band-secure); }
+
+.toast__title {
+  font-size: var(--f-sm);
+  font-weight: 600;
+  color: var(--c-text);
+}
+
+.toast__detail {
+  margin-top: 2px;
+  font-size: var(--f-xs);
+  color: var(--c-text-dim);
+}
+
+.toast--out {
+  opacity: 0;
+  transform: translateY(-6px);
+  transition: opacity 220ms ease-in, transform 220ms ease-in;
+}
+
+@keyframes toast-in {
+  from { opacity: 0; transform: translateY(-8px); }
+  to   { opacity: 1; transform: none; }
+}
+
+/* ---------------------------------------------------------------------------
+ * REVOLT AND THE UNREST CLOCK, ON THE MAP
+ * ------------------------------------------------------------------------ */
+
+/* A province in open revolt is a different STATE, not a worse number, so it
+   gets its own treatment rather than simply the darkest band — a HATCH, so
+   the distinction survives for a player who cannot tell the crisis red from
+   the revolt red. See buildDefs() in src/ui/map.js. */
+.region--revolt {
+  fill: url(#hatch-revolt);
+  stroke: var(--c-danger);
+  stroke-width: 1.5;
+  animation: revolt-pulse 2.6s ease-in-out infinite;
+}
+
+.hatch__bg     { fill: var(--c-band-crisis); }
+.hatch__stripe { fill: var(--c-danger); }
+
+@keyframes revolt-pulse {
+  0%, 100% { filter: brightness(1); }
+  50%      { filter: brightness(1.45); }
+}
+
+/* The countdown to a revolt: a ring above the region label that fills over
+   the eight months a province spends below the unrest line. A mechanic that
+   destroys a region has to be visibly coming. */
+.region-unrest {
+  display: none;
+  /* The dark disc is what makes the arc readable. See the note in map.js:
+     this ring only ever shows on orange and red regions, so it has to bring
+     its own background with it. */
+  fill: rgba(13, 17, 23, 0.8);
+  stroke: var(--c-mandate);
+  stroke-width: 3;
+  stroke-linecap: round;
+  /* Start the arc at twelve o'clock and run clockwise, like a clock face. */
+  transform-box: fill-box;
+  transform-origin: center;
+  transform: rotate(-90deg);
+  transition: stroke-dasharray 400ms linear;
+  pointer-events: none;
+}
+
+.region-unrest.is-on { display: block; }
+
+/* ---------------------------------------------------------------------------
+ * REGION PANEL — state notes and patch fatigue
+ * ------------------------------------------------------------------------ */
+
+/* Same shape as .garrison-note, different urgency. Kept as its own class so
+   the two can diverge without one inheriting the other's colour. */
+.state-note {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--s-2);
+  margin-top: var(--s-3);
+  padding: var(--s-2) var(--s-3);
+  border-radius: var(--r-sm);
+  font-size: var(--f-xs);
+  line-height: 1.45;
+}
+
+.state-note--revolt {
+  background: rgba(240, 86, 62, 0.12);
+  border: 1px solid rgba(240, 86, 62, 0.35);
+  color: var(--c-text);
+}
+
+.state-note--unrest {
+  background: var(--c-surface-2);
+  border: 1px solid var(--c-line);
+  color: var(--c-text-dim);
+}
+
+.state-note__icon,
+.state-note .garrison-note__icon { flex: none; }
+
+/* Patch fatigue on an action button. It has to be visible or the rising price
+   is just a number that mysteriously went up. */
+.action__fatigue {
+  font-size: var(--f-xs);
+  color: var(--c-band-strained);
+  white-space: nowrap;
+}
+
+.action__fatigue:empty { display: none; }
+
+.action--fatigued .action__price { color: var(--c-band-strained); }
+
+/* ---------------------------------------------------------------------------
+ * END OF TERM — "where your mandate went"
+ * One row per cause, biggest first. See buildMandateSpend in src/main.js.
+ * ------------------------------------------------------------------------ */
+.veil-spend {
+  margin: var(--s-4) 0;
+  padding: var(--s-3) 0;
+  border-top: 1px solid var(--c-line);
+  border-bottom: 1px solid var(--c-line);
+  text-align: left;
+}
+
+.veil-spend__title {
+  margin-bottom: var(--s-2);
+  font-size: var(--f-xs);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--c-text-faint);
+}
+
+.veil-spend__row {
+  display: grid;
+  /* label | bar | number. The bar takes whatever is left, so the numbers stay
+     in one column however long the labels get. */
+  grid-template-columns: minmax(0, 8em) 1fr 2.5em;
+  align-items: center;
+  gap: var(--s-2);
+  padding: 3px 0;
+}
+
+.veil-spend__label {
+  font-size: var(--f-xs);
+  color: var(--c-text-dim);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.veil-spend__bar {
+  height: 6px;
+  border-radius: 999px;
+  background: var(--c-surface-3);
+  overflow: hidden;
+}
+
+.veil-spend__fill {
+  display: block;
+  height: 100%;
+  background: var(--c-mandate);
+}
+
+.veil-spend__value {
+  font-family: var(--font-num);
+  font-size: var(--f-xs);
+  font-variant-numeric: tabular-nums;
+  color: var(--c-text);
+  text-align: right;
+}

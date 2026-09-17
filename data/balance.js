@@ -25,12 +25,12 @@
   Mandate.BALANCE = {
     /* Bumped when the meaning of these numbers changes enough that old saves
      * would be balanced differently. Recorded into saves for debugging. */
-    balanceVersion: 4,
+    balanceVersion: 5,
 
     /* Actions carry the phase that made them real. Anything above this number
      * is authored-but-not-live, so future phases can land their data before
      * their logic without the buttons going live early. */
-    implementedPhase: 4,
+    implementedPhase: 5,
 
     time: {
       /* Real milliseconds per simulated day, per speed setting.
@@ -115,6 +115,12 @@
        * not merely bad). */
       decayPerUnstableRegionPerDay: 0.008,
       decayPerUnstablePointPerDay: 0.0006,
+      /* Phase 5. A region in OPEN REVOLT is not simply a very unstable one —
+       * it is a province that is no longer governed, and it reads that way on
+       * the clock. Three revolts cost more Mandate per day than the entire
+       * baseline, which is what makes a spreading crisis a losing position
+       * rather than an expensive one. */
+      decayPerRevoltingRegionPerDay: 0.03,
       /* --- THE TERM: the win condition ------------------------------------
        * Phase 4 gives the clock a far end as well as a near one. Survive to
        * `termDays` with Mandate left and the term is COMPLETED — the run is
@@ -244,6 +250,56 @@
         unpaidDevelopmentDecayPerDay: 0.05,
       },
 
+      /* --- REVOLT: the crisis you cannot invest your way out of ------------
+       * Phase 5. Until now, a neglected region was merely *bad*: it sat below
+       * the unrest line costing a trickle of Mandate, and any government with
+       * a Treasury surplus could buy it back at leisure with Public Works. The
+       * headless harness made the consequence embarrassingly plain — the only
+       * strategy that ever served a full term was one that built NOTHING and
+       * patched the same provinces for ten years. Neglect has to outrun money.
+       *
+       * So unrest now has a clock of its own. A region below the unrest line
+       * accumulates `unrestDays`; past `revoltAfterDays` it goes into OPEN
+       * REVOLT, and a revolt is a different kind of problem:
+       *
+       *   - Development is actively DESTROYED, not merely stalled, so the
+       *     longer it burns the less there is to come back to.
+       *   - Output collapses beyond what stability alone would explain — a
+       *     province in revolt is not a poor province, it is not yours.
+       *   - It costs far more Mandate than mere unrest, and it drags its
+       *     neighbours down harder.
+       *   - Invest is REFUSED there. You cannot build your way out of a
+       *     revolt; you can only put troops in (Garrison) or spend your
+       *     standing on it (Emergency Relief). That is the whole point, and
+       *     it is the answer to the standing question of whether garrisons
+       *     are ever worth it — see BALANCE.md.
+       *
+       * Recovery is deliberately not automatic: a revolt ends only when the
+       * region is pulled back above `endsAbove`, which is above the unrest
+       * line, so a province that merely creeps over the threshold falls
+       * straight back in. */
+      revolt: {
+        /* Eight months below the line. Long enough that a player who answers
+         * a crisis promptly never sees one, short enough that a region left
+         * alone for a year is gone. */
+        afterDays: 240,
+        /* Unrest days bleed off at this rate per day once the region is back
+         * above the line — so repeated brushes with unrest accumulate, but a
+         * region held steady for a year forgets. */
+        coolPerDay: 2,
+        /* Stability a region in revolt must reach before order is restored.
+         * Above `unstableBelow` on purpose: crossing the line by a hair is
+         * not the end of a revolt. */
+        endsAbove: 45,
+        /* What a revolt does while it lasts. */
+        outputMult: 0.35,
+        developmentDecayPerDay: 0.06,
+        naturalPenalty: -12,
+        /* A revolting neighbour is worth this many ordinary unstable ones
+         * when computing contagion. */
+        contagionWeight: 2.5,
+      },
+
       /* --- garrisons: the standing commitment ------------------------------
        * A garrison is the only thing in the game that holds a region steady
        * on its own, and it is deliberately expensive in all three currencies:
@@ -262,7 +318,8 @@
      *
      * `requires` keys understood by the sim:
      *   garrisoned      — the region must (not) have a garrison
-     *   stabilityBelow  — the region must be under this stability */
+     *   stabilityBelow  — the region must be under this stability
+     *   notInRevolt     — the region must not be in open revolt */
     actions: {
       invest: {
         id: 'invest',
@@ -270,10 +327,29 @@
         blurb: 'Fund local industry. Raises Development — and the upkeep bill.',
         cost: { treasury: 120 },
         effect: { development: 6 },
-        /* Deliberately small. Development is the only permanent fix in the
-         * game, and at 0.5 the clock punished using it: a player who built
-         * nothing outlived one who rebuilt the country. */
-        mandateCost: 0.2,
+        /* You cannot build in a province that is no longer yours. This is the
+         * one line that makes a revolt a different KIND of problem from a
+         * shortage of money — see `region.revolt` above. */
+        requires: { notInRevolt: true },
+        /* ZERO, as of Phase 5, and this is the single most consequential
+         * number in the file.
+         *
+         * It was 0.5 in Phase 2 and 0.2 in Phase 4, each time cut because "a
+         * player who built nothing outlived one who rebuilt the country".
+         * Each time the cut was a guess. The headless harness finally
+         * measured it: a builder run spent 35 of its 100 Mandate on Invest
+         * and got about 13 back in approval relief. Building cost three times
+         * what it bought, so of course patching everything and building
+         * nothing was the winning line — and that is the idle-game
+         * spreadsheet DESIGN.md says the whole game exists to design against.
+         *
+         * There was never a design argument for this cost either. A garrison
+         * costs Mandate because soldiers in the streets are unpopular;
+         * austerity costs Mandate because unpaid bills are. Roads and clinics
+         * are not unpopular. Development already has a price, and it is the
+         * right one: every point built raises the upkeep bill forever. This
+         * was double-charging the one move the game wants to reward. */
+        mandateCost: 0,
         phase: 1,
       },
       publicWorks: {
@@ -283,6 +359,24 @@
         cost: { treasury: 80 },
         effect: { stability: 8 },
         mandateCost: 0,
+        /* PATCH FATIGUE (Phase 5). The design has always called Public Works
+         * "a loan against the future"; this is the interest.
+         *
+         * The harness found that patching the same provinces forever was the
+         * only strategy that ever served a full term — it costs no Mandate,
+         * so a government that built nothing simply outlived one that rebuilt
+         * the country. The reference games answer this with corruption and
+         * inflation: in Rebel Inc. every initiative you roll out raises the
+         * price of the next one, so spending your way out of a problem gets
+         * measurably worse the longer you do it.
+         *
+         * Same rule here, and deliberately PER REGION: the fourth clinic in
+         * the same province costs what a first clinic in a neglected one
+         * would, so the cheap move is always the one you have been avoiding.
+         * `perUse` is added to a cost multiplier that decays by `coolPerDay`,
+         * and Invest carries no fatigue at all — building never gets harder,
+         * which is the whole contrast. */
+        fatigue: { perUse: 0.35, coolPerDay: 0.0016, max: 2.5 },
         phase: 1,
       },
       garrison: {
@@ -320,6 +414,11 @@
         cost: { politicalCapital: 6, treasury: 40 },
         effect: { stability: 18 },
         mandateCost: 0,
+        /* Relief carries fatigue too, and a steeper one: the second airlift
+         * into the same province in the same year is a government that has
+         * stopped governing it. It is still the only action that reaches a
+         * region in open revolt, which is what keeps it worth the standing. */
+        fatigue: { perUse: 0.5, coolPerDay: 0.0016, max: 3 },
         requires: { stabilityBelow: UNSTABLE_BELOW },
         phase: 2,
       },

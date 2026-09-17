@@ -76,17 +76,23 @@
     },
 
     {
-      id: 'comptroller', difficulty: 4,
+      id: 'comptroller', difficulty: 2,
       name: 'Emeric Tesoro',
       title: 'The Comptroller',
       blurb: 'Twenty years in the Treasury. Knows exactly how long a state can ' +
         'go without paying its bills, and intends to find out.',
       buff: {
-        label: 'Every unit of output earns 18% more Treasury',
-        mods: { 'treasury.mult': 1.18 },
+        label: 'Every unit of output earns 10% more Treasury',
+        mods: { 'treasury.mult': 1.10 },
       },
       handicap: {
-        label: 'No time for gestures: Public Works lands 35% weaker',
+        /* Was "Public Works lands 35% weaker" through Phase 4. That handicap
+         * cost a PATCHER dearly and a BUILDER nothing at all, so once Phase 5
+         * made building the winning line, the leader the selection screen
+         * calls Punishing started winning every seed. A handicap has to bite
+         * the strategy the game rewards, or it is decoration. */
+        label: 'The books balance, the country does not: development holds ' +
+          '15% less stability',
         /* Deliberately NOT a `natural.base` penalty, which is what this was
          * first written as. A flat shift to where regions settle interacts
          * with the unrest cliff at 35: -5 means a region needs development 13
@@ -94,7 +100,7 @@
          * contagion on top the harness watched twelve of sixteen regions fall
          * over by year two, every seed. A handicap should make a leader
          * play differently, not make them lose. */
-        mods: { 'effect.publicWorks.mult': 0.65 },
+        mods: { 'natural.perDevelopment.mult': 0.85 },
       },
       mechanic: {
         label: 'Deficit Powers — unpaid bills burn Mandate instead of the country, ' +
@@ -116,22 +122,50 @@
       title: 'The Reformer',
       blurb: 'Elected on a promise to rebuild. Has the patience for it and, so ' +
         'far, the votes.',
+      /* REBUILT IN PHASE 5, and the reason is worth keeping.
+       *
+       * The Reformer's old buff was "regions correct toward their natural
+       * level twice as fast", which reads like a bonus and is not one: a
+       * region's natural level starts BELOW the unrest line everywhere, so
+       * doubling the rate of correction doubles the speed of the opening
+       * slide. With revolts in the game that stopped being a quirk and became
+       * fatal — 0 wins from 24 harness runs, from what had been the easiest
+       * leader in the game. It was a handicap wearing a buff's label, and it
+       * had been one since Phase 4; nothing measured it until now.
+       *
+       * The replacement says the same thing about the character — this is a
+       * government that rebuilds rather than patches — in a way that actually
+       * rewards doing it. Development holds more for them, and money is
+       * tighter, so they must build their way out of everything. */
       buff: {
-        label: 'Regions correct toward their true level twice as fast',
-        mods: { 'reversion.mult': 2.0 },
+        label: 'Every point of development holds 25% more stability',
+        mods: { 'natural.perDevelopment.mult': 1.25 },
       },
       handicap: {
-        label: 'Reform is disruptive: 10% less output everywhere',
-        mods: { 'output.mult': 0.90 },
+        label: 'Reform is expensive: 12% less Treasury from the same output',
+        mods: { 'treasury.mult': 0.88 },
       },
+      /* This mechanic was "Invest costs no Mandate at all" through Phase 4.
+       * Phase 5 made that true for EVERYBODY (see the long note on
+       * `actions.invest.mandateCost` in data/balance.js), which quietly left
+       * the Reformer holding a handicap and nothing else — the harness caught
+       * it immediately: 0 wins from 24 runs, down from the easiest leader in
+       * the game.
+       *
+       * The replacement is the same trick the Marshal and the Comptroller
+       * already use: hand this leader one rule of the newest system, inverted.
+       * Nobody else may Invest in a province in open revolt; the Reformer
+       * may. Paired with regions that correct toward their natural level
+       * twice as fast, it makes them the one government that can dig itself
+       * out of a hole instead of having to avoid falling into one. */
       mechanic: {
-        label: 'Mandate to Build — Invest costs no Mandate at all',
-        mods: { 'mandateCost.invest.mult': 0 },
+        label: 'Rebuild Anywhere — you may Invest in a province in open revolt',
+        flags: ['buildThroughRevolt'],
       },
     },
 
     {
-      id: 'tribune', difficulty: 1,
+      id: 'tribune', difficulty: 4,
       name: 'Kosta Renholt',
       title: 'The Tribune',
       blurb: 'A street organiser who never learned to sit still. Popular for ' +
@@ -151,7 +185,7 @@
     },
 
     {
-      id: 'engineer', difficulty: 3,
+      id: 'engineer', difficulty: 4,
       name: 'Dr Petra Sikora',
       title: 'The Engineer',
       blurb: 'Ran the national works bureau before she ran the country. Thinks ' +
@@ -171,14 +205,14 @@
     },
 
     {
-      id: 'caretaker', difficulty: 2,
+      id: 'caretaker', difficulty: 1,
       name: 'Ansel Brask',
       title: 'The Caretaker',
       blurb: 'Appointed to hold the chair for eighteen months. That was four ' +
         'years ago, and nobody has raised it since.',
       buff: {
-        label: 'A calm, forgettable government: Mandate drains 12% slower',
-        mods: { 'mandateDecay.mult': 0.88 },
+        label: 'A calm, forgettable government: Mandate drains 7% slower',
+        mods: { 'mandateDecay.mult': 0.93 },
       },
       handicap: {
         label: 'No agenda of his own: research runs 30% slower',
@@ -192,16 +226,23 @@
   ];
 
   /* `difficulty` is not flavour and it is not a guess: it is where each leader
-   * landed in the harness, running the SAME build-focused strategy against six
-   * seeds (the table is in BALANCE.md).
+   * landed in the harness, running the SAME build-focused strategy against
+   * TWELVE seeds. Re-measured in Phase 5 with `node tools/harness.js --seeds
+   * 12 --strategy builder`, and the ordering changed almost completely — see
+   * BALANCE.md, and note that every Phase 4 rating was taken from six seeds,
+   * which was not enough to tell 3/6 from 5/6.
    *
-   *   1  wins comfortably            Reformer, Tribune
-   *   2  wins with room to spare     Caretaker
-   *   3  finishes ~100-200 days short unless played well   Marshal, Engineer
-   *   4  needs a genuinely good term Comptroller
+   *   terms served out of 12, build-focused play:
+   *     Caretaker 8   Reformer 7   Comptroller 6
+   *     Marshal 5     Tribune 3    Engineer 3
+   *
+   *   1  Forgiving   two thirds of seeds survive   Caretaker, Reformer
+   *   2  Steady      about half                    Comptroller
+   *   3  Demanding   under half                    Marshal
+   *   4  Punishing   a quarter                     Tribune, Engineer
    *
    * Showing it on the selection screen is honest: a player who picks the
-   * Comptroller first and loses should know they picked the hard one, not
+   * hardest leader first and loses should know they picked the hard one, not
    * conclude the game is unfair. */
   Mandate.LEADERS.DIFFICULTY_LABELS = {
     1: 'Forgiving', 2: 'Steady', 3: 'Demanding', 4: 'Punishing',

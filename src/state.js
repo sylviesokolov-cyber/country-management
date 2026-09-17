@@ -25,7 +25,7 @@
    * renamed, removed). `migrate()` below then decides what to do with older
    * saves. Getting this in from day one is much cheaper than retrofitting it
    * after players have saves worth keeping. */
-  State.SCHEMA_VERSION = 4;
+  State.SCHEMA_VERSION = 5;
   State.SAVE_KEY = 'mandate:save';
 
   /**
@@ -45,6 +45,19 @@
         stability: def.stability,
         development: def.development,
         garrisoned: false,  /* a standing commitment, not a one-off action */
+
+        /* --- PHASE 5: the unrest clock ---------------------------------
+         * `unrestDays` counts consecutive-ish days below the unrest line
+         * (it bleeds off rather than resetting, so repeated brushes with
+         * unrest accumulate); past BALANCE.region.revolt.afterDays the
+         * province rises and `inRevolt` latches on until it is pulled back
+         * well above the line. See src/sim.js updateRevolts(). */
+        unrestDays: 0,
+        inRevolt: false,
+        /* actionId -> how much more that action costs HERE than it did the
+         * first time, as a fraction. Bumped on use, bled off daily. Only the
+         * patch actions have one; Invest never gets more expensive. */
+        fatigue: {},
 
         /* Derived every tick and stored only so the UI can read them without
          * recomputing. Nothing in the sim reads them back. */
@@ -183,6 +196,11 @@
         nationalStability: 0,
         nationalDevelopment: 0,
         unstableRegions: 0,
+        regionsInRevolt: 0,
+        /* The itemised Mandate bill — see Sim.mandateBreakdown. Cached here
+         * so the gauge's number and the "why" behind it are the same numbers,
+         * computed once a tick. */
+        mandateBreakdown: { total: 0, lines: [] },
         /* Phase 3. Salaries are billed WITH the upkeep bill, so an
          * over-staffed government goes bankrupt exactly like an over-built
          * one; `upkeepPerDay` above includes this figure, and the Ministry
@@ -204,6 +222,14 @@
         /* Days on which at least one region sat below the unrest line. The
          * run summary reads this as "how much of your term was a crisis". */
         daysInUnrest: 0,
+        /* Phase 5. Kept apart from daysInUnrest on purpose: a term with one
+         * bad province is a different term from one with a province lost. */
+        daysInRevolt: 0,
+        revoltsStarted: 0,
+        /* Where the term went, by cause: every key Sim.mandateBreakdown can
+         * emit, plus 'actions' and 'events'. Summed by Sim.chargeMandate,
+         * which is the ONLY thing in the game that moves the meter. */
+        mandateBy: {},
         techCompleted: 0,
         appointeesHired: 0,
         eventsResolved: 0,
@@ -261,9 +287,67 @@
       parsed = JSON.parse(raw);
     } catch (err) {
       console.warn('[Mandate] save file is corrupt, ignoring it.');
+      State.clearSave();
       return null;
     }
-    return State.migrate(parsed);
+
+    var migrated;
+    try {
+      migrated = State.migrate(parsed);
+    } catch (err) {
+      /* A migration step that throws is a bug in THIS file, and the player
+       * should not meet it as a white screen. */
+      console.warn('[Mandate] could not migrate the save:', err);
+      State.clearSave();
+      return null;
+    }
+
+    if (migrated && !State.isUsable(migrated)) {
+      console.warn('[Mandate] save is structurally invalid, starting fresh.');
+      State.clearSave();
+      return null;
+    }
+    /* A save that could not be loaded is cleared rather than left in place:
+     * otherwise every subsequent boot re-reads the same broken blob, logs the
+     * same warning and throws away the same run, and the player has no way to
+     * escape it short of clearing site data. */
+    if (!migrated) State.clearSave();
+    return migrated;
+  };
+
+  /**
+   * Is this object actually a game world, rather than merely valid JSON?
+   *
+   * `migrate()` answers "is this the right SHAPE of save"; this answers "is
+   * there a country in it". They are different questions, and only the second
+   * one catches a save truncated by a browser that ran out of quota
+   * mid-write — which produces a parseable object with the right
+   * schemaVersion and half a world underneath it.
+   *
+   * Deliberately shallow. This is a guard against a broken file, not a
+   * schema validator: anything it does not check, the sim recomputes on
+   * Sim.refresh() anyway.
+   */
+  State.isUsable = function (save) {
+    if (!save || typeof save !== 'object') return false;
+    if (typeof save.day !== 'number' || !isFinite(save.day)) return false;
+    if (typeof save.mandate !== 'number' || !isFinite(save.mandate)) return false;
+    if (!save.resources || typeof save.resources.treasury !== 'number') return false;
+    /* The region count has to match the data file. A save written against a
+     * different map is not a save of this game, and loading it would leave
+     * regions that exist in the geometry with no state behind them. */
+    if (!Array.isArray(save.regions) ||
+        save.regions.length !== Mandate.REGIONS.length) return false;
+    for (var i = 0; i < save.regions.length; i++) {
+      var region = save.regions[i];
+      if (!region || !State.regionDef(region.id)) return false;
+      if (typeof region.stability !== 'number' || !isFinite(region.stability)) return false;
+      if (typeof region.development !== 'number' || !isFinite(region.development)) return false;
+    }
+    /* These are containers the sim writes into without ever checking; a save
+     * missing one crashes on the first tick rather than at load. */
+    return !!(save.tech && save.appointees && save.policies && save.stats &&
+      save.derived && save.events);
   };
 
   State.clearSave = function () {
@@ -355,6 +439,37 @@
       /* A v3 save is by definition a run somebody was playing. */
       save.started = true;
       save.schemaVersion = 4;
+    }
+
+    /* v4 -> v5 (Phase 5): the unrest clock, open revolt and patch fatigue. A
+     * v4 save is a country where neglect had no clock on it, and there is no
+     * honest way to reconstruct how long each province has been in trouble —
+     * the save never recorded it. Everyone therefore starts the new clock at
+     * zero, which is the generous reading and the only defensible one: it
+     * cannot retroactively lose a player a province they were never warned
+     * about. Fatigue starts clear for the same reason. */
+    if (save.schemaVersion === 4) {
+      if (!Array.isArray(save.regions)) return null;
+      save.regions.forEach(function (region) {
+        region.unrestDays = 0;
+        region.inRevolt = false;
+        region.fatigue = {};
+      });
+      save.stats = save.stats || {};
+      save.stats.daysInRevolt = 0;
+      save.stats.revoltsStarted = 0;
+      save.stats.mandateBy = {};
+      save.derived = save.derived || {};
+      save.derived.regionsInRevolt = 0;
+      save.derived.mandateBreakdown = { total: 0, lines: [] };
+      save.log = save.log || [];
+      save.log.push({
+        day: save.day || 0,
+        kind: 'system',
+        text: 'Reports now reach the capital: provinces left in unrest will ' +
+          'rise in open revolt.',
+      });
+      save.schemaVersion = 5;
     }
 
     if (save.schemaVersion !== State.SCHEMA_VERSION) {

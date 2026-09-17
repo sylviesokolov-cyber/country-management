@@ -78,6 +78,15 @@
     Mandate.View.onTap(Util.el('btn-ministry'), function () { onOverlayOpen('tech'); });
     Mandate.View.onTap(Util.el('btn-regions'), function () { onOverlayOpen('regions'); });
 
+    /* The news ticker and the alert toasts. Both are pure view: they read the
+     * run log and the derived totals and never decide that anything happened.
+     * The ticker opens the log; a toast about a province offers to take you
+     * there. */
+    Mandate.Alerts.build({
+      onOpenLog: function () { onOverlayOpen('events'); },
+      onPickRegion: onPickRegionFromList,
+    });
+
     Mandate.EventUI.build({ onChoose: onEventChoice });
     Mandate.LeaderSelect.build({ onPick: onLeaderPicked });
 
@@ -131,6 +140,7 @@
     Mandate.Panel.render(s);
     Mandate.Overlay.render(s);
     Mandate.EventUI.render(s);
+    Mandate.Alerts.render(s);
     renderGameOver(s);
   }
 
@@ -149,6 +159,7 @@
 
   function onRegionTap(regionId) {
     Mandate.Overlay.close();         /* only one thing open at a time */
+    Mandate.Hud.closeWhy();
     if (Mandate.View.viewState.selectedRegionId === regionId) {
       Mandate.Panel.close();         /* tapping the open region closes it */
     } else {
@@ -218,6 +229,11 @@
 
     Mandate.Panel.close();
     Mandate.Overlay.close();
+    Mandate.Hud.closeWhy();
+    /* One term's warnings must not carry into the next: without this, a run
+     * started after losing at 5 Mandate would never fire the low-mandate
+     * warning again, because the watch would still be latched on. */
+    Mandate.Alerts.reset();
     Mandate.View.invalidate();
     Mandate.LeaderSelect.close();
     Util.el('veil').classList.remove('is-open');
@@ -227,6 +243,7 @@
 
   function onOverlayOpen(tabId) {
     Mandate.Panel.close();
+    Mandate.Hud.closeWhy();
     /* Tapping the button for the tab that is already open closes it — standard
      * phone behaviour, and it makes the corner buttons a toggle. */
     if (Mandate.View.viewState.activeTab === tabId) {
@@ -265,6 +282,7 @@
     Util.el('veil-reason').textContent = s.gameOverReason || '';
     buildScore(Util.el('veil-score'), s);
     buildRunSummary(Util.el('veil-stats'), s);
+    buildMandateSpend(Util.el('veil-spend'), s);
   }
 
   /**
@@ -287,7 +305,10 @@
     el.appendChild(scoreLine('veil-score__label',
       (leader ? leader.title + ' \u00b7 ' : '') +
       (isBest
-        ? (previous ? 'a new best' : 'first term served')
+        /* "first term served" was wrong on a first run that was LOST, which
+         * is most first runs. The score is a first score either way; whether
+         * the term was served is what `won` says. */
+        ? (previous ? 'a new best' : 'your first term with them')
         : 'best ' + Util.formatInt(previous.score))));
   }
 
@@ -297,6 +318,74 @@
     node.textContent = text;
     return node;
   }
+
+  /**
+   * WHERE THE TERM WENT — the hundred points of Mandate, itemised.
+   *
+   * This is the half of the end-of-term screen that teaches something. The
+   * stats below say what the country looked like when you left it; this says
+   * what you spent your time on to get there, and a player who loses at 2,400
+   * days with 38 points gone to unrest has been told exactly what to do
+   * differently, in a way that "final score 8,412" never manages.
+   *
+   * It reads `stats.mandateBy`, which Sim.chargeMandate accumulates from the
+   * same arithmetic that actually moved the meter — so this cannot flatter
+   * the run it is describing.
+   */
+  function buildMandateSpend(el, s) {
+    if (!el) return;
+    el.innerHTML = '';
+
+    var spend = s.stats.mandateBy || {};
+    var rows = Object.keys(spend)
+      .map(function (key) { return { key: key, value: spend[key] }; })
+      /* An event that HANDED Mandate back nets off against what events cost;
+       * a net gain is real and worth showing, so only the empty lines go. */
+      .filter(function (row) { return Math.abs(row.value) >= 0.5; })
+      .sort(function (a, b) { return b.value - a.value; });
+    if (!rows.length) return;
+
+    var total = rows.reduce(function (sum, row) { return sum + Math.abs(row.value); }, 0);
+
+    el.appendChild(scoreLine('veil-spend__title', 'Where your mandate went'));
+    rows.forEach(function (row) {
+      var line = document.createElement('div');
+      line.className = 'veil-spend__row';
+
+      var label = document.createElement('span');
+      label.className = 'veil-spend__label';
+      label.textContent = SPEND_LABELS[row.key] || row.key;
+
+      var bar = document.createElement('span');
+      bar.className = 'veil-spend__bar';
+      var fill = document.createElement('span');
+      fill.className = 'veil-spend__fill';
+      fill.style.width = (Math.abs(row.value) / total * 100).toFixed(1) + '%';
+      bar.appendChild(fill);
+
+      var value = document.createElement('span');
+      value.className = 'veil-spend__value';
+      value.textContent = (row.value < 0 ? '+' : '') + Math.round(Math.abs(row.value));
+
+      line.appendChild(label);
+      line.appendChild(bar);
+      line.appendChild(value);
+      el.appendChild(line);
+    });
+  }
+
+  /* The keys Sim.mandateBreakdown emits, in the player's language rather than
+   * the simulation's. */
+  var SPEND_LABELS = {
+    baseline: 'Time in office',
+    unrest: 'Regions in unrest',
+    revolt: 'Provinces in revolt',
+    garrison: 'Troops deployed',
+    policy: 'Standing policies',
+    austerity: 'Deficit financing',
+    actions: 'Decisions taken',
+    events: 'Events answered',
+  };
 
   function buildRunSummary(listEl, s) {
     if (!listEl) return;
@@ -316,6 +405,11 @@
         Util.formatInt(s.derived.nationalDevelopment) + '  (from ' +
         Util.formatInt(Mandate.Sim.startingDevelopment()) + ')'],
       ['Term without unrest', calm + '%'],
+      ['Provinces lost to revolt',
+        Util.formatInt(s.stats.revoltsStarted || 0) +
+        (s.stats.daysInRevolt
+          ? '  (' + Util.formatInt(s.stats.daysInRevolt) + ' days in revolt)'
+          : '')],
       ['Research completed',
         s.stats.techCompleted + ' of ' + Mandate.TECH.nodes.length + ' nodes'],
       ['Appointments made', Util.formatInt(s.stats.appointeesHired)],

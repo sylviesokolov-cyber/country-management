@@ -118,6 +118,47 @@ natural = base + development × perDevelopment
 ungarrisoned region doesn't merely stagnate — it settles into unrest and starts
 costing Mandate. Doing nothing has to lose ground.
 
+#### Open revolt — the crisis you cannot buy off
+
+*Live as of Phase 5.*
+
+Unrest has a clock of its own. A region below the unrest line banks
+`unrestDays`; after `revolt.afterDays` it rises in **open revolt**, which is a
+different *kind* of problem rather than a worse number:
+
+- development is **destroyed** rather than stalled, so the longer it burns the
+  less there is to come back to;
+- output collapses beyond what stability alone explains;
+- it weighs `revolt.contagionWeight` neighbours' worth of unrest, so it pulls
+  the map in around it;
+- **Invest is refused there.** Only Garrison and Emergency Relief reach it.
+
+That last rule is the whole point, and it is the answer to a question Phases 3
+and 4 both logged and neither resolved: *are garrisons ever worth it?* They
+were not, because every crisis could be solved with money given enough of it.
+A revolt cannot. The headless harness confirmed it — the garrison-focused play
+style went from never surviving a term to surviving a quarter of them, and for
+the Marshal it is now the best line available.
+
+A revolt must never be a surprise. The map fills a countdown ring over the
+eight months a province spends below the line, and the region panel says how
+many days are left in words. A mechanic that destroys a region has to be
+visibly coming, or it punishes not having read the manual rather than
+punishing neglect.
+
+#### Patch fatigue
+
+*Live as of Phase 5.* Public Works and Emergency Relief get **more expensive
+each time they are used in the same region**, bleeding off slowly. Invest never
+does.
+
+The design has always described Public Works as "a loan against the future";
+this is the interest, and it exists because the harness found that patching
+the same provinces forever was the only strategy that ever served a full term.
+Rebel Inc. answers the same problem the same way — every initiative rolled out
+raises the price of the next one — and making it *per region* means the
+cheapest move is always the one you have been avoiding.
+
 This is what makes the three region actions differ **in kind**, not in size:
 
 | Action | What it does | How long it lasts |
@@ -270,7 +311,51 @@ An event pauses the clock and takes over the screen, and the game returns to
 the speed you were running at when you answer. A branching choice read while
 sixteen regions drift is not a choice, it is a reflex test.
 
-### 2.7 Winning, losing and the score
+### 2.7 Telling the player what is happening
+
+*Live as of Phase 5 — `src/ui/alerts.js` and the Mandate breakdown in
+`src/ui/hud.js`.*
+
+Phase 4 built a run log and put it behind a tab, which meant the country could
+rise in revolt, go bankrupt and lose two provinces while the map said nothing
+at all. This is the part of the genre that is most worth copying directly, and
+all three reference games do the same two things.
+
+**The meter says why it is draining.** Rebel Inc.'s reputation bar never
+simply falls; it tells you, in words, that lack of stability is what is eating
+it. So the Mandate gauge is a button, and `Sim.mandateBreakdown()` returns the
+itemised bill — one line per cause, ranked by share. The same function is what
+actually charges the meter, so the reasons and the rate cannot drift apart,
+and `Sim.chargeMandate()` is the only thing in the game that moves Mandate at
+all, which is what makes the end-of-term "where your mandate went" summary
+trustworthy rather than a plausible-looking lie.
+
+The unit is deliberately a **share of today's drain**, not a rate. "0.008 per
+day" is a number; "31% of what is costing you the term" is the thing the
+player actually wants, which is *which one to go and fix*.
+
+**The log gets a front page.** A news ticker along the bottom of the map
+carries the latest entry — Plague Inc.'s ticker, in the one part of a
+landscape HUD that was otherwise dead space — and tapping it opens the full
+log. Alert toasts carry the handful of things that must not be missed.
+
+Two rules govern the toasts, and both are load-bearing:
+
+1. **A toast never pauses the game and never takes the input.** Events are the
+   game's one interruption and they have earned it. After Inc. is widely
+   disliked for timed tasks that seize control of the settlement, and a
+   notification that stops the clock is the same mistake in miniature. Tapping
+   a toast is an *offer* — it jumps to the region — and ignoring it costs
+   nothing but the news.
+2. **Good news gets the same billing as bad.** A feed that only ever speaks up
+   to scold reads as nagging, and the player stops looking at it.
+
+Colour is never the only carrier. A province in open revolt is drawn with a
+**hatch**, not just a redder red, because the crisis band is already red and
+the difference between "in trouble" and "gone, and Invest will be refused
+there" is the most consequential distinction on the map.
+
+### 2.8 Winning, losing and the score
 
 A run ends one of two ways, and both go through one function so the score is
 computed exactly one way:

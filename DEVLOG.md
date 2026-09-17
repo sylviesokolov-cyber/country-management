@@ -398,3 +398,106 @@ Template:
 - Political Capital still pins at its cap late in a good term. Events spend it,
   but not enough.
 - Still worth starting now: recruit the 12 Play Store testers (14-day clock).
+
+## 2026-09-17 — Phase 5: the harness finally lands, and it has opinions
+
+**Built**
+- **`tools/harness.js` is in the repo.** Written from scratch and thrown away
+  in three consecutive phases because it always lived in a scratch directory.
+  Four play styles (`idle`, `patcher`, `builder`, `garrisoner`) × six leaders ×
+  N seeds, answering events, reporting the itemised Mandate bill per run.
+  Every balance claim in this session is now a command, and they are in the
+  header of that file and at the top of `BALANCE.md`.
+- **Open revolt.** A region below the unrest line banks `unrestDays`; after 240
+  of them it rises. A revolt destroys development rather than stalling it,
+  collapses output, weighs 2.5 neighbours' worth of contagion — and **refuses
+  Invest**. Troops or emergency relief, nothing else. It ends only above 45%
+  stability, so creeping over the unrest line by a hair does not end it.
+- **Patch fatigue.** Public Works and Emergency Relief cost more each time they
+  are used *in the same region*, bleeding off over ~200 days. Invest never
+  does. The design has always called Public Works "a loan against the future";
+  this is the interest.
+- **The Mandate meter says why it is draining.** The gauge is a button;
+  `Sim.mandateBreakdown()` returns the bill itemised by cause and ranked by
+  share of today's drain. It is also what *charges* the meter, so the reasons
+  and the rate cannot drift. And `Sim.chargeMandate()` is now the only thing in
+  the game that moves Mandate at all, which is what makes the end-of-term
+  "where your mandate went" bars trustworthy instead of a plausible lie.
+- **A news ticker and alert toasts** (`src/ui/alerts.js`). The run log gets a
+  front page in the dead space between the two corner buttons, and a toast
+  carries the handful of things that must not be missed. Toasts never pause the
+  game and never take the input — that is a deliberate rule, written down.
+- **Save hardening.** Corrupt, truncated, empty and future-version saves all
+  land on the leader screen instead of a white page, and a save that cannot be
+  loaded is *cleared* rather than left to break every subsequent boot. Six bad
+  saves and the v3 → v4 → v5 migration chain are all tested.
+
+**Broke / learned**
+- **The only strategy that had ever served a full term was the one that built
+  nothing.** First harness sweep against Phase 4's numbers: `patcher` 7 wins
+  from 36, `builder` **zero** from 36 — despite reaching 80% stability and
+  1,300 development. That is exactly the idle-game spreadsheet `DESIGN.md` says
+  the whole game exists to design against, and it had been shipping since
+  Phase 2. Two previous phases *suspected* it and both cut `invest.mandateCost`
+  by guesswork (0.5 → 0.2); neither could measure it.
+- **The Mandate accounting found it in one line.** `m:base 62, m:actions 35` —
+  a builder spent 35 of its 100 Mandate on Invest and got about 13 back in
+  approval relief. Building cost three times what it bought. The right value
+  was 0, and there had never been a design argument for anything else:
+  garrisons cost Mandate because soldiers are unpopular, austerity because
+  unpaid bills are. Roads and clinics are not. Result: builder 0/36 → 32/72,
+  garrisoner 0/36 → 18/72, and the intended hierarchy (build > garrison > patch
+  > idle) holds for the first time.
+- **Garrisons work now, and the previous two entries said exactly why they
+  would.** Both logged that the honest fix was "a crisis you cannot invest your
+  way out of" and both shipped another price cut instead. Building the crisis
+  fixed it in one change: for the Marshal, garrisoning is now the *best*
+  strategy available (6/12 vs builder's 5/12).
+- **Fixing the sim broke a leader, and the harness caught it in the same
+  sweep.** The Reformer's unique mechanic was "Invest costs no Mandate at all"
+  — which this phase made true for everybody. It went from the easiest leader
+  in the game to 0 wins from 24 runs, holding a handicap and nothing else.
+- **Its buff had been a handicap wearing a buff's label since Phase 4.**
+  "Regions correct toward their natural level twice as fast" sounds like a
+  bonus and is not: natural stability starts *below* the unrest line
+  everywhere, so doubling the rate of correction doubles the speed of the
+  opening slide. Nothing measured it until there was a harness.
+- **A handicap has to bite the strategy the game rewards, or it is
+  decoration.** The Comptroller's was "Public Works lands 35% weaker" — which
+  costs a patcher dearly and a builder nothing. The moment building became the
+  winning line, the leader the selection screen calls *Punishing* started
+  winning every seed. Phase 4's ratings were taken from six seeds, which cannot
+  tell 3/6 from 5/6; re-measured over twelve, the ladder changed almost
+  completely.
+- **A fixed-width element in a `1fr` grid track sizes that track.** The new
+  toast stack and breakdown panel silently pushed the whole HUD grid wider than
+  its own padding box, which slid the Mandate gauge out from under the region
+  panel's inset and straight over the panel. Both are positioned against named
+  padding variables now instead of participating in grid sizing.
+- **An orange warning ring on an orange region is invisible.** The unrest
+  countdown only ever appears on regions in the orange and red bands, so it had
+  to bring its own dark background with it. Same class of problem one step
+  further on: revolt is drawn with a *hatch*, not a redder red, because the
+  crisis band is already red and roughly one man in twelve cannot tell those
+  two apart.
+- A browser test of the save migration proved nothing, because `pagehide` fires
+  on reload and re-saved the live v5 state over the downgraded blob. Migration
+  is tested in Node against `State.migrate` directly now, which is the actual
+  unit.
+
+**Next**
+- **The late game is flat, and it is the first thing to fix.** In a won run
+  development caps out (16 × 100 = 1,600) around day 3,000, after which the
+  Treasury climbs past 20,000 with nothing to spend it on and Political Capital
+  pins at its cap — that last one carried over from Phase 3 *and* Phase 4, so
+  it is now two problems rather than one. The last 500 days of a good term have
+  no decisions in them.
+- Patch fatigue is doing less work than it looks: `patcher` spreads across 16
+  regions, so each one cools most of the way back before it is patched again.
+  The revolt system is what actually demoted that strategy. Sharpen it or admit
+  it.
+- Manual save / restart controls — a Settings tab. The corrupt-save half of
+  that TODO item is done; the player-facing half is not.
+- Finish the accessibility pass: a real contrast audit and keyboard focus
+  order. Reduced motion, non-colour carriers and live regions are done.
+- Still worth starting: recruit the 12 Play Store testers (14-day clock).

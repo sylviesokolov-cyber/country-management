@@ -74,6 +74,7 @@
  *   austerityHitsMandate    unpaid bills burn Mandate instead of the country
  *   garrisonBlocksContagion a garrisoned region stops passing unrest along
  *   pcFromDevelopment       Political Capital accrues from development
+ *   buildThroughRevolt      Invest is allowed in a province in open revolt
  * ========================================================================== */
 (function (Mandate) {
   'use strict';

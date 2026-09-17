@@ -136,24 +136,54 @@ Tick items off as they land, and note anything deferred in `DEVLOG.md`.
 
 ## Phase 5 — Balance, polish, robustness
 
-- [ ] Full balance pass against real playtests — log every change in
-      `BALANCE.md`
-- [ ] Headless balance harness: run N ticks in Node and dump the curves
-      *(the sim has no DOM dependencies, so this is straightforward)*.
-      Now rewritten from scratch for the **third** phase running — Phase 4's
-      version drives six leaders × six seeds and answers events. Overdue
-- [ ] Re-visit whether garrisons are ever worth it outside crisis triage.
-      Phase 4 halved the Mandate cost (3 → 1.5) and gave the Marshal a 40%
-      upkeep cut, which moved it from hopeless to close — but a build-focused
-      style still outlives a garrison-focused one *for the Marshal*. The
-      remaining fix is a crisis the player cannot invest their way out of, i.e.
-      sharper crisis events. See both `BALANCE.md` entries
-- [ ] Sharpen the crisis events so neglect is punished faster than a Treasury
-      surplus can undo it
-- [ ] Verify a run lands in the 45–60 minute window
-- [ ] Save/load hardening: corrupt-save handling, a real migration step, manual
-      save/restart controls
-- [ ] Accessibility pass: contrast, labels, reduced motion
+- [x] **Headless balance harness, committed at last** — `tools/harness.js`,
+      after being written from scratch and thrown away in three consecutive
+      phases. Four play styles × six leaders × N seeds, answers events, and
+      reports the itemised Mandate bill per run. Every claim in the Phase 5
+      section of `BALANCE.md` is a command in its header
+- [x] Full balance pass driven by the harness — logged in `BALANCE.md`. The
+      headline: **the only strategy that had ever served a full term was the
+      one that built nothing**, because Invest's Mandate cost was three times
+      what approval relief paid back. It is now zero
+- [x] **Garrisons are worth it.** Answered the standing Phase 3 + Phase 4
+      question the way both entries said it would have to be answered — with a
+      crisis you cannot invest your way out of, rather than another price cut.
+      A garrison-focused style went 0/36 → 18/72, and for the Marshal it is now
+      the *best* line available
+- [x] Sharpen the crisis so neglect outruns a Treasury surplus — **open
+      revolt**: a region below the unrest line for 240 days rises, destroys its
+      own development, refuses Invest, and can only be broken with troops or
+      emergency relief
+- [x] **Patch fatigue** — Public Works and Emergency Relief get dearer each
+      time they are used in the same region; Invest never does
+- [x] Re-measure every leader's difficulty over twelve seeds (Phase 4's
+      ratings came from six, which cannot tell 3/6 from 5/6) and rebuild the
+      two leaders the balance pass broke or exposed
+- [x] **The Mandate meter says why it is draining** — tap the gauge for the
+      itemised bill, ranked by share. Same function that charges the meter
+- [x] **News ticker and alert toasts** — the run log gets a front page, and
+      the handful of things that must not be missed get a toast that never
+      pauses the game
+- [x] End-of-term "where your mandate went", from an accounting that goes
+      through the one function allowed to move the meter
+- [x] Save/load hardening: corrupt, truncated and future-version saves all
+      recover to the leader screen instead of a white page, and a save that
+      cannot be loaded is *cleared* rather than left to break every boot.
+      `State.isUsable()` + a v4 → v5 migration step, both tested
+- [ ] Verify a run lands in the 45–60 minute window **with a human playing it**
+      (the harness says 3,650 days × 900ms = 55 minutes, but a human pauses)
+- [ ] **Fix the flat late game.** In a won run, development caps out around day
+      3,000 and the Treasury then climbs past 20,000 with nothing to spend it
+      on, while Political Capital pins at its cap (carried over from Phases 3
+      and 4). The last 500 days of a good term have no decisions in them —
+      this is the first thing to do next
+- [ ] Manual save / restart controls (a Settings tab). The corrupt-save half of
+      this item is done; the player-facing half is not
+- [ ] Finish the accessibility pass. Done so far: reduced motion is respected
+      globally, revolt is carried by a hatch rather than by colour alone, the
+      gauge is a real button with `aria-expanded`, toasts and the ticker are
+      live regions, and a region announces its revolt to a screen reader.
+      Still to do: a real contrast audit, and keyboard focus order
 - [ ] Sound/haptics (optional — `navigator.vibrate` on key actions)
 - [ ] Test on a small phone (667×375 landscape) and a large one; check
       notch/gesture-bar insets on a real device, held both ways round

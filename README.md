@@ -20,9 +20,10 @@ post to a region, standing **policies** you live with rather than switch, and
 random. Serve the full term and you win; run out of Mandate and you don't.
 Either way you get a score, and each leader remembers your best.
 
-What's left is Phase 5 (balance and polish) and Phase 6 (the Android wrap). See
-[TODO.md](TODO.md) for the plan and [DEVLOG.md](DEVLOG.md) for what happened
-when.
+Phase 5 (balance, polish and robustness) is well under way — the headless
+balance harness, open revolt, the Mandate breakdown and the alert layer have
+all landed. What's left of it, plus Phase 6 (the Android wrap), is in
+[TODO.md](TODO.md), and [DEVLOG.md](DEVLOG.md) records what happened when.
 
 ---
 
@@ -113,8 +114,11 @@ src/
     panel.js            region detail panel (slides in from the right)
     ministry.js         the Tech, Appointees and Policies screens
     events.js           the event card, and the run log behind it
+    alerts.js           the news ticker and the alert toasts
     leaders.js          the leader selection screen
     overlay.js          full-screen management overlay + the region list
+tools/
+  harness.js            headless balance harness — runs the real sim in Node
 .github/workflows/
   deploy-pages.yml      auto-deploy to GitHub Pages on push to main
   android-release.yml   manual, signed .aab build (needs Phase 6 first)
@@ -122,6 +126,26 @@ src/
 
 The one rule worth remembering: **`data/` is what the game is, `src/` is how it
 runs.** Tuning never touches `src/`.
+
+---
+
+## Balancing it
+
+`src/sim.js` has no DOM dependencies, so the whole game runs headless. That is
+what `tools/harness.js` is for — it plays the real simulation at a few thousand
+days a second, across four fixed play styles, every leader and as many seeds as
+you ask for:
+
+```bash
+node tools/harness.js --seeds 12 --compare        # every leader x strategy
+node tools/harness.js --strategy builder --curve  # one run, sampled over time
+node tools/harness.js --audit                     # modifier keys nothing reads
+```
+
+The table's last columns are the itemised Mandate bill (`m:base`, `m:unrest`,
+`m:revolt`, `m:act`, `m:evt`), and they are usually the fastest route to *why*
+a result is what it is. Record what you change and why in `BALANCE.md` — the
+Phase 5 entry there is an example of what a useful one looks like.
 
 ---
 
