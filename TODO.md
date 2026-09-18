@@ -269,6 +269,24 @@ it actually belongs to.*
 - [x] **Map data layers** — stability, development and output, on the empty
       middle-left HUD rail. Two of the three numbers that decide a province's
       worth were invisible on the screen the player looks at all game
+- [x] **A premium pass on the surfaces** — a two-tone bevel, an accent glow
+      for live controls and a fine grain on large dark fills, as three tokens
+      in `base.css` applied in one section rather than per component. Plus a
+      coastline (one stroke on the shadow-caster ghosts), stronger internal
+      region borders, and a revolt marker in the region list, which had none
+- [x] **Reclaimed the map from the HUD.** Measured rather than eyeballed:
+      persistent chrome was covering 23% of an 844x390 screen and 26% of a
+      667x375 one, hiding up to four of the sixteen province names. The layer
+      switch is now a 38x102 icon rail (was 154x162), the toast stack is
+      capped at two, and four measured layout bugs are fixed — a duplicate
+      `::after` that had killed the HUD contrast scrim outright, a ticker
+      overflowing its grid track under the Regions button, a clock stretched
+      to 105px by `align-self: stretch`, and a term label wrapping inside
+      itself. Now 17%/15%, nothing hidden
+- [ ] **The ticker is hidden below 380px of screen height**, so it is absent
+      on a 667x375 phone — one of the two devices the Phase 5 list names as a
+      test target. 28px against the game's only ambient information channel;
+      worth re-deciding with a device in hand
 - [ ] **Make terrain mechanical.** The five types already exist and are used
       for exactly two things: a glyph on the map and a word in the panel.
       `data/regions.js` already names `data/balance.js` as their home
