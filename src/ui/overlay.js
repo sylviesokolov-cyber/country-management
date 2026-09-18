@@ -68,6 +68,12 @@
 
           var row = document.createElement('button');
           row.className = 'region-row';
+          /* The map gives a province in open revolt its own fill AND a hatch,
+           * because it is a different state rather than a worse number. This
+           * list gave it nothing: a revolt that refuses Invest and razes its
+           * own development looked exactly like a region merely sitting at
+           * the bottom of the crisis band. The two readouts have to agree. */
+          if (region.inRevolt) row.dataset.revolt = 'true';
 
           var swatch = document.createElement('span');
           swatch.className = 'region-row__swatch';
@@ -93,10 +99,22 @@
            * be", which is the question that actually costs you Mandate. */
           var trend = document.createElement('span');
           trend.className = 'region-row__trend';
-          trend.dataset.mood = region.stabilityTrend > 0.0005 ? 'up'
-            : region.stabilityTrend < -0.0005 ? 'down' : 'flat';
-          trend.textContent = region.stabilityTrend > 0.0005 ? '\u2191'
-            : region.stabilityTrend < -0.0005 ? '\u2193' : '\u2192';
+          if (region.inRevolt) {
+            /* A province in open revolt spends the word that would otherwise
+             * hold its trend arrow, because which way its stability is
+             * drifting is not the fact worth reporting about it \u2014 it refuses
+             * Invest and is razing its own development, and that is a state
+             * rather than a direction. It also has to be carried by something
+             * other than colour (the row is already red), and a ~195px cell
+             * will not hold the name, an arrow, the numbers AND a badge. */
+            trend.dataset.mood = 'revolt';
+            trend.textContent = 'REVOLT';
+          } else {
+            trend.dataset.mood = region.stabilityTrend > 0.0005 ? 'up'
+              : region.stabilityTrend < -0.0005 ? 'down' : 'flat';
+            trend.textContent = region.stabilityTrend > 0.0005 ? '\u2191'
+              : region.stabilityTrend < -0.0005 ? '\u2193' : '\u2192';
+          }
 
           var nums = document.createElement('span');
           nums.className = 'region-row__nums';
@@ -108,7 +126,11 @@
           row.appendChild(trend);
           row.appendChild(nums);
           row.setAttribute('aria-label',
-            def.name + ', ' + band.label +
+            def.name + ', ' +
+            /* Revolt first and in place of the band: to a screen reader
+             * "Crisis" and "in open revolt" are not two facts to rank, and
+             * the second is the one that changes what you can do there. */
+            (region.inRevolt ? 'in open revolt' : band.label) +
             (region.garrisoned ? ', garrisoned' : '') +
             ', settling at ' + Math.round(region.naturalStability) +
             ', development ' + Math.round(region.development));

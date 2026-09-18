@@ -60,7 +60,7 @@
 
     Mandate.MapView.build(Util.el('map'), onRegionTap);
     Mandate.MapView.buildLayerSwitch(
-      Util.el('layer-switch'), Util.el('layer-legend'));
+      Util.el('layer-switch'), Util.el('layer-caption'));
     Mandate.Hud.build(onSpeedChange);
     Mandate.Panel.build({ onAction: onRegionAction });
     Mandate.Fullscreen.build();

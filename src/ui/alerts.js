@@ -62,7 +62,13 @@
    * what fits above the map on a 390px-tall landscape phone without crowding
    * the resource chips. */
   var TOAST_MS = 7000;
-  var MAX_TOASTS = 3;
+  /* Two, not three. Three cards at the old size covered a fifth of an
+   * 844x390 screen and a quarter of a 667x375 one, and hid ten of the
+   * sixteen region names between them — an alert system reporting on a
+   * country by covering it up. Two is still enough for "a second province
+   * has gone" to arrive while the first is on screen, which is the case the
+   * stack exists for. */
+  var MAX_TOASTS = 2;
 
   /* Thresholds we have already announced this run, so a Mandate hovering on
    * 30.01 doesn't fire the same warning sixty times a second. Reset when a

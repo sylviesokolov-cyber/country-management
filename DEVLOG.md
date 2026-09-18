@@ -808,3 +808,76 @@ Template:
 - Still human-only: the 45–60 minute window, the score on a phone speaker,
   playtesting the projects, and now **hard + short**, which the harness has
   never won.
+
+## 2026-09-18 — Measuring the HUD, and what that turned up
+
+**Built**
+- **A premium pass as three tokens, not a hundred rules** (`base.css`): a
+  two-tone `--bevel` (light inside the top edge, shadow inside the bottom),
+  `--glow-accent`/`--glow-danger`/`--glow-good` so a live control emits light
+  rather than swapping its background, and `--grain`, a fine inlined-SVG
+  noise for large dark fills. Applied in one section at the bottom of
+  `ui.css` the way the art pass was. All three are load-bearing together;
+  drop one and it flattens straight back out.
+- **A coastline for one declaration.** The shadow-caster ghosts are a black
+  copy of every region drawn under the real ones, so stroking them draws
+  every internal border too — except the real regions paint on top and cover
+  exactly the internal half of each stroke. What survives is the outside edge
+  of the union of all sixteen.
+- **The map layer switch, rebuilt.** Icons only, at 38x102 instead of
+  154x162, with the labels arriving as a caption for ~2.6s on each switch.
+- **A revolt marker in the region list**, which had none — the map has
+  carried one for a phase. It takes the trend arrow's slot, because a
+  province in open revolt has no trend worth reading, and carries the state
+  three ways (glow, bar, the word) rather than by colour alone.
+
+**Broke / learned**
+- **Measuring the HUD found more than looking at it did.** A script that adds
+  up every HUD element's area and hit-tests every region label against
+  `elementFromPoint` reported 23% of an 844x390 screen covered, 26% at
+  667x375, and 2–4 of the sixteen province names hidden behind chrome. None
+  of that was visible as "wrong" in a screenshot. **The single worst offender
+  was the layer switch I added last session** — larger than the chips, the
+  clock, the gauge and both corner buttons combined, for a lens. Persistent
+  chrome is now 17%/15% and nothing is hidden.
+- **Four layout bugs, all of them invisible until measured:**
+  - **Two `.map-layer::after` rules**, in two different sections of `ui.css`.
+    That is not two effects — the second replaced the first outright, and the
+    scrim that guarantees HUD contrast over a bright region had never once
+    painted.
+  - **The ticker overflowed its own grid track.** `margin: 0 auto` defeats
+    `justify-self: stretch`: the item sizes to its content instead of its
+    column. With the panel open that column is 26px and the ticker rendered
+    at 443px, printing the news under the Regions button. Same disease the
+    toast stack was cured of a phase ago, and the fix is the one already
+    recorded in this file — anchor it, don't make it a grid item.
+  - **`align-self` defaults to `stretch`**, so the clock was being stretched
+    to the height of the wrapped resource chips beside it: 105px of glass on
+    a 375px-tall screen for one 28px line of content.
+  - **`.clock__term` wrapped inside itself** ("YEAR 1 OF" / "10").
+- **I broke the region panel with a one-line "tidiness" rule.** Adding
+  `position: relative` to `.side-panel` and `.overlay` to host a grain
+  pseudo-element overrode their `position: absolute` and dropped both out of
+  their anchoring — the panel landed at the top-left of the screen. They were
+  positioned already, which is all `inset: 0` on a child needs. Caught
+  because the screenshot script could no longer click the close button, and
+  confirmed as mine by measuring the same boxes against the previous commit.
+- **A trailing space after a CSS hex escape is eaten as the escape's
+  terminator**, so `content: '\2014 IN REVOLT'` renders "—IN REVOLT". Use
+  `\00a0`, which also stops the marker breaking across lines on its own.
+- **`overflow-wrap: break-word` in a list row is a trap.** It snapped
+  "Duskmoor" into "Duskmoo"/"r" the moment the revolt tag made the row
+  wider. One clipped name with an ellipsis reads as a list; a word broken in
+  half reads as a bug.
+
+**Next**
+- Unchanged and still the two biggest: **mechanical terrain**, then
+  **factions**. Nothing in the game wants anything yet.
+- The remaining UI items from the Unciv comparison are untouched: splitting
+  the seven-tab overlay along act/review lines, keeping the region panel's
+  context when the Ministry opens, and a needs-attention signal.
+- One deliberate tradeoff left in place: the news ticker is still
+  `display: none` below 380px of height, so it is absent on a 667x375 phone —
+  which is one of the two devices `TODO.md` names as a test target. 28px of a
+  short screen against the game's only ambient information channel is worth
+  re-deciding with a device in hand.

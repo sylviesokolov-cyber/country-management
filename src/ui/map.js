@@ -440,6 +440,11 @@
   Map.buildLayerSwitch = function (railEl, legendEl) {
     var View = Mandate.View;
     var buttons = Object.create(null);
+    var captionTimer = null;
+    /* The caption is suppressed on the very first paint: the map opens on
+     * Stability, which is what it has always shown, and announcing that at
+     * boot is the interface telling the player something they did not ask. */
+    var first = true;
 
     function show(layer) {
       activeLayer = layer;
@@ -462,8 +467,32 @@
       Object.keys(buttons).forEach(function (id) {
         buttons[id].setAttribute('aria-pressed', id === layer.id ? 'true' : 'false');
       });
-      View.setText(legendEl, layer.legend);
-      legendEl.dataset.memoKey = 'map-legend';
+
+      /* THE CAPTION IS TRANSIENT, and that is the whole point of it.
+       *
+       * This rail shipped as three labelled buttons over a permanent
+       * three-line legend, which measured 154x162px — 7.6% of an 844x390
+       * screen, 10% of a 667x375 one, larger than the chips, the clock, the
+       * gauge and both corner buttons put together, and it hid up to four
+       * region names behind it. A lens onto the map is not worth a tenth of
+       * the map.
+       *
+       * So the rail is icons only, and the words appear for a couple of
+       * seconds each time the player switches — which is exactly when they
+       * are wanted and the only time they are read. DESIGN.md's rule that
+       * there is no hover on a phone is still honoured: nothing here is
+       * hidden behind a pointer the player does not have. */
+      if (first) {
+        first = false;
+      } else {
+        View.setText(legendEl, layer.label + ' — ' + layer.legend);
+        legendEl.dataset.memoKey = 'map-legend';
+        legendEl.classList.add('is-on');
+        window.clearTimeout(captionTimer);
+        captionTimer = window.setTimeout(function () {
+          legendEl.classList.remove('is-on');
+        }, 2600);
+      }
     }
 
     LAYERS.forEach(function (layer) {
@@ -472,8 +501,10 @@
       if (Mandate.Icons.has(layer.icon)) {
         btn.appendChild(Mandate.Icons.el(layer.icon, 'layer-btn__icon'));
       }
-      btn.appendChild(View.node('span', 'layer-btn__label', layer.label));
-      btn.setAttribute('aria-label', 'Show ' + layer.label + ' on the map');
+      /* The name is the accessible name rather than visible text. A screen
+       * reader gets the full sentence; a sighted player gets it in the
+       * caption the moment they press. */
+      btn.setAttribute('aria-label', layer.label + '. ' + layer.legend);
       View.onTap(btn, function () { show(layer); });
       buttons[layer.id] = btn;
       railEl.appendChild(btn);

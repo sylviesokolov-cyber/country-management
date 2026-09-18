@@ -175,13 +175,12 @@
 
     <!-- left rail: which of the three region numbers the map is painting.
          Filled by src/ui/map.js, which owns the list of layers. -->
-    <div class="hud-leftrail layer-switch glass">
-      <div class="layer-switch__buttons" id="layer-switch"
+    <div class="hud-leftrail">
+      <div class="layer-switch glass" id="layer-switch"
            role="group" aria-label="Map layer"></div>
-      <!-- Inside the card, not floating over the map: a bare caption sat on
-           top of a bright region and over the region labels, and was
-           unreadable against both. -->
-      <p class="layer-legend" id="layer-legend"></p>
+      <!-- Transient: shown for a couple of seconds when the layer changes,
+           then gone. A permanent legend here cost a tenth of the map. -->
+      <p class="layer-caption" id="layer-caption" aria-live="polite"></p>
     </div>
 
     <!-- bottom-left: opens the full-screen management overlay -->
