@@ -26,8 +26,26 @@
 <link rel="manifest" href="manifest.json">
 <link rel="icon" href="icon.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="icon.svg">
-<link rel="stylesheet" href="styles/base.css">
-<link rel="stylesheet" href="styles/ui.css">
+<!--
+  CACHE-BUSTING — every CSS and JS file below carries a `?v=N` query string.
+
+  There is no build step (deliberately — DESIGN.md §4.7, so the game keeps
+  working opened straight off the filesystem), which means no hashed
+  filenames either. Without SOME cache-busting, a returning player — or a
+  player testing a fresh deploy in a browser tab that already had the game
+  open — can keep being served yesterday's CSS/JS after a real deploy has
+  gone out, especially on GitHub Pages' CDN, which sets a several-minute
+  max-age. That is not a hard-refresh inconvenience, it is the UI silently
+  reverting to a previous, already-fixed state while looking like a new bug.
+
+  So: BUMP THIS NUMBER on every commit that changes any file listed with a
+  `?v=` below. It is one number, changed in one place (search for `?v=1`),
+  and it forces every browser and every CDN edge to treat every asset as
+  new — the entire mechanism. It does not need to be meaningful, only
+  different from the last one.
+-->
+<link rel="stylesheet" href="styles/base.css?v=1">
+<link rel="stylesheet" href="styles/ui.css?v=1">
 </head>
 <body>
 
@@ -289,49 +307,49 @@
 
      Order: data -> helpers -> simulation -> view -> boot.
      ======================================================================== -->
-<script src="data/balance.js"></script>
+<script src="data/balance.js?v=1"></script>
 <!-- The two choices made before a leader is picked: how hard, and for how
      long. Both are ordinary modifier payloads, so this is a data file. -->
-<script src="data/setup.js"></script>
-<script src="data/map-geometry.js"></script>
-<script src="data/regions.js"></script>
+<script src="data/setup.js?v=1"></script>
+<script src="data/map-geometry.js?v=1"></script>
+<script src="data/regions.js?v=1"></script>
 <!-- Phase 3 content: the tech tree, appointee traits and the hiring pool's raw
      material, and the standing policies. All pure data, no logic. -->
-<script src="data/tech.js"></script>
-<script src="data/traits.js"></script>
-<script src="data/appointees.js"></script>
-<script src="data/policies.js"></script>
+<script src="data/tech.js?v=1"></script>
+<script src="data/traits.js?v=1"></script>
+<script src="data/appointees.js?v=1"></script>
+<script src="data/policies.js?v=1"></script>
 <!-- Phase 5: the national projects — the late game. -->
-<script src="data/projects.js"></script>
+<script src="data/projects.js?v=1"></script>
 <!-- Phase 4: who you are, and what the country does about it. -->
-<script src="data/leaders.js"></script>
-<script src="data/events.js"></script>
+<script src="data/leaders.js?v=1"></script>
+<script src="data/events.js?v=1"></script>
 
-<script src="src/util.js"></script>
-<script src="src/state.js"></script>
+<script src="src/util.js?v=1"></script>
+<script src="src/state.js?v=1"></script>
 <!-- modifiers.js MUST come before sim.js: the sim captures Mandate.Mods at
      load time, and it is what turns tech/appointees/policies into numbers. -->
-<script src="src/modifiers.js"></script>
-<script src="src/sim.js"></script>
-<script src="src/loop.js"></script>
+<script src="src/modifiers.js?v=1"></script>
+<script src="src/sim.js?v=1"></script>
+<script src="src/loop.js?v=1"></script>
 
 <!-- The score and the sound effects. Pure view, like src/ui/* — it reads
      state and makes noise, and the simulation has no idea it exists. -->
-<script src="src/audio.js"></script>
-<script src="src/ui/view.js"></script>
+<script src="src/audio.js?v=1"></script>
+<script src="src/ui/view.js?v=1"></script>
 <!-- icons.js must precede every view that draws one. -->
-<script src="src/ui/icons.js"></script>
-<script src="src/ui/map.js"></script>
-<script src="src/ui/hud.js"></script>
-<script src="src/ui/panel.js"></script>
-<script src="src/ui/ministry.js"></script>
-<script src="src/ui/settings.js"></script>
-<script src="src/ui/alerts.js"></script>
-<script src="src/ui/events.js"></script>
-<script src="src/ui/leaders.js"></script>
-<script src="src/ui/overlay.js"></script>
-<script src="src/ui/fullscreen.js"></script>
+<script src="src/ui/icons.js?v=1"></script>
+<script src="src/ui/map.js?v=1"></script>
+<script src="src/ui/hud.js?v=1"></script>
+<script src="src/ui/panel.js?v=1"></script>
+<script src="src/ui/ministry.js?v=1"></script>
+<script src="src/ui/settings.js?v=1"></script>
+<script src="src/ui/alerts.js?v=1"></script>
+<script src="src/ui/events.js?v=1"></script>
+<script src="src/ui/leaders.js?v=1"></script>
+<script src="src/ui/overlay.js?v=1"></script>
+<script src="src/ui/fullscreen.js?v=1"></script>
 
-<script src="src/main.js"></script>
+<script src="src/main.js?v=1"></script>
 </body>
 </html>
