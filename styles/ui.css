@@ -544,13 +544,37 @@
  * depth and put the light where the land's drop shadow says it is.
  * ------------------------------------------------------------------------ */
 .map-layer {
-  /* Room on the right for the Mandate rail. The map is full-bleed by design
-     and the HUD floats over it — but a region's NAME disappearing under the
-     gauge is the HUD eating the thing it is there to report on, which is a
-     different matter. The SVG's `preserveAspectRatio: meet` fits the country
-     into whatever box it is given, so a padding here just makes the country
-     slightly smaller rather than cropping it. */
-  padding-right: calc(68px + env(safe-area-inset-right));
+  /* Room on the right for the Mandate rail, and on the left for the map
+     layer switch. The map is full-bleed by design and the HUD floats over
+     it — but a region's NAME disappearing under a HUD control is the HUD
+     eating the thing it is there to report on, which is a different matter.
+     The SVG's `preserveAspectRatio: meet` fits the country into whatever box
+     it is given, so a padding here just makes the country slightly smaller
+     rather than cropping it.
+
+     Both numbers were re-measured with the region panel OPEN, not just
+     closed — that turned up two real overlaps a closed-panel check had
+     missed entirely:
+
+     LEFT is new. Opening the panel narrows the map's box, and `meet`
+     RE-CENTRES the country within it, which shifts the whole landmass —
+     the layer switch does not move when the panel opens (only the
+     right-hand HUD clusters inset), so the westernmost region's label
+     could end up under it. Measured at 844x390 with the panel open:
+     "Karst Reach" sat 18x8px under the rail before this existed.
+
+     RIGHT went 68px -> 104px. The Mandate rail itself ALSO shifts left when
+     the panel opens (`--hud-inset-right`), landing inside what used to be
+     safe map space — at 68px, "Port Ivane" was already only 3px clear of
+     the gauge with the panel open, and adding the left padding above
+     centred the map further right and turned that 3px gap into a 17px
+     overlap. It was never really 68px of clearance; it was 3.
+
+     Both numbers were reached by measuring, not calculating: re-check with
+     `overlapsRailBox` / a gauge-overlap sweep across panel open/closed at
+     844x390, 667x375 and a wide desktop size before changing either. */
+  padding-left: calc(50px + env(safe-area-inset-left));
+  padding-right: calc(104px + env(safe-area-inset-right));
   background:
     radial-gradient(ellipse 120% 90% at 50% -10%,
       rgba(64, 104, 160, 0.20) 0%, transparent 60%),
