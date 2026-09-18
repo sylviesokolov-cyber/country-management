@@ -202,12 +202,28 @@ Tick items off as they land, and note anything deferred in `DEVLOG.md`.
       typeface (Barlow, self-hosted), a map with gradients, a sea, a drop
       shadow and terrain glyphs, a regraded band ramp, elevation tokens, and a
       geometric crest per leader. See `DESIGN.md` §2.11 and `assets/LICENSES.md`
-- [ ] Finish the accessibility pass. Done so far: reduced motion is respected
+- [x] Finish the accessibility pass. Done so far: reduced motion is respected
       globally, revolt is carried by a hatch rather than by colour alone, the
       band ramp now separates in greyscale, the gauge is a real button with
       `aria-expanded`, toasts and the ticker are live regions, and a region
       announces its revolt to a screen reader.
-      Still to do: a real contrast audit, and keyboard focus order
+      Contrast audit + keyboard focus order, done this pass: every text/
+      background pair against the three surface tokens computed by formula
+      (WCAG 2.1 relative luminance), two failures found and fixed —
+      `--c-text-faint` (was 3.3:1 on the darkest surface, now `#808ea6` at
+      4.5–5.9:1) and the difficulty-4 leader label, which read the map's
+      `--c-band-crisis` as text at 3.2–4:1 and now uses a new
+      text-only `--c-band-crisis-text` token instead, leaving the map fill
+      untouched. Keyboard focus order turned out to already be sound — every
+      tappable control is a real `<button>` or carries `tabindex="0"`
+      (map regions), and every closed panel/overlay/veil already leaves the
+      tab order via `display: none` or `visibility: hidden` rather than just
+      `aria-hidden` — but there was no VISIBLE focus indicator anywhere
+      except the volume slider. Added one `:focus-visible` outline rule in
+      `base.css` covering every button/link/input/`[tabindex]`, a stroke-based
+      override for the SVG region polygons (an `outline` box doesn't follow a
+      polygon's shape), and made the toast cards keyboard-reachable
+      (`tabindex="0"`; they already had Enter/Space via `View.onTap`)
 - [x] **Sound, music and haptics** (`src/audio.js`) — and not optional, which
       is where the last session left it. An **adaptive score**, synthesised in
       the Web Audio graph rather than shipped as a file: one `tension` value

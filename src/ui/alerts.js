@@ -230,6 +230,10 @@
 
     var el = View.node('div', 'toast toast--' + tone);
     el.setAttribute('role', 'status');
+    /* Reachable and dismissable from a keyboard, not just a pointer —
+     * `View.onTap` already wires Enter/Space, but a plain `<div>` needs a
+     * `tabindex` before Tab will ever land on it. */
+    el.setAttribute('tabindex', '0');
     el.appendChild(View.node('div', 'toast__title', title));
     if (detail) el.appendChild(View.node('div', 'toast__detail', detail));
 

@@ -91,7 +91,12 @@
   --c-line-strong: #3a4763;
   --c-text:        #eef3f9;
   --c-text-dim:    #93a2b8;
-  --c-text-faint:  #64748f;
+  /* Lightened from #64748f: the original sat at 3.3:1 against the darker
+     panel surfaces, below the 4.5:1 WCAG AA floor for the small metadata
+     text (days remaining, log timestamps, costs) it's actually used for.
+     #808ea6 clears 4.5:1 against every surface token above while staying
+     visibly dimmer than --c-text-dim. */
+  --c-text-faint:  #808ea6;
 
   /* --- resources (each resource keeps one colour everywhere, forever) --- */
   --c-treasury:    #f0c34b;
@@ -122,6 +127,12 @@
   --c-band-strained-lo: #96701f;
   --c-band-unrest-lo:   #9c4d18;
   --c-band-crisis-lo:   #802424;
+
+  /* Text-only lift of --c-band-crisis. The map fill sits at 3.2–4:1 against
+     the panel surfaces — fine for a large coloured region, not for the one
+     place that colour is also used as small text (the hardest leader's
+     difficulty label). Never used on the map itself. */
+  --c-band-crisis-text: #d2716e;
 
   /* --- elevation ---
      Three steps, used consistently: the HUD floats just above the map, the
@@ -252,6 +263,31 @@ button {
 }
 
 svg { touch-action: manipulation; }
+
+/* ---------------------------------------------------------------------------
+ * FOCUS VISIBILITY
+ *
+ * Every interactive control here is reachable by keyboard already —
+ * `View.onTap` wires Enter/Space alongside `pointerdown`, and the map
+ * regions carry `tabindex="0"` explicitly — but until now nothing except the
+ * Settings volume slider ever showed WHERE focus was. A keyboard or
+ * switch-access player tabbing through the HUD had no way to tell which
+ * control was about to activate.
+ *
+ * `:focus-visible` (not `:focus`) so a mouse/touch tap never shows a ring —
+ * only keyboard and assistive-tech focus does. One accent-coloured outline,
+ * everywhere, rather than a per-component style to remember at each of the
+ * ~20 call sites. `.region` (an SVG `<polygon>`) overrides this in ui.css
+ * with a stroke instead, next to its existing pressed/selected states.
+ * ------------------------------------------------------------------------ */
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+[tabindex]:focus-visible {
+  outline: 2px solid var(--c-accent);
+  outline-offset: 2px;
+  border-radius: var(--r-sm);
+}
 
 /* ---------------------------------------------------------------------------
  * 3. THE APP SHELL — LANDSCAPE, FULL-BLEED MAP
