@@ -1460,6 +1460,95 @@
   gap: var(--s-2);
 }
 
+/* ---------------------------------------------------------------------------
+ * THE SETUP BAR — how hard, and for how long.
+ *
+ * Two segmented controls above the leader grid. They sit ABOVE it, and are
+ * the only thing between the title and the cards, because they change what
+ * every card below them says: the best score on each is keyed by the setup,
+ * so a player who scrolls straight past these and picks a leader has still
+ * made both choices, and should have seen them first.
+ * ------------------------------------------------------------------------ */
+.setup-bar {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-1);
+  align-items: center;
+}
+
+.setup-bar__row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-4);
+  justify-content: center;
+  align-items: center;
+}
+
+.setup-group {
+  display: flex;
+  gap: var(--s-2);
+  align-items: center;
+  min-width: 0;
+}
+
+.setup-group__label { color: var(--c-text-faint); }
+
+.setup-bar__detail {
+  margin: 0;
+  max-width: 76ch;
+  text-align: center;
+  font-size: var(--f-xs);
+  line-height: 1.3;
+  color: var(--c-text-dim);
+}
+
+.setup-options {
+  display: flex;
+  gap: 2px;
+  padding: 2px;
+  background: var(--c-surface);
+  border: 1px solid var(--c-line);
+  border-radius: var(--r-md);
+}
+
+.setup-option {
+  display: flex;
+  align-items: center;
+  /* 36px, not the usual 44px floor. These sit in a horizontal strip on a
+     390px-tall screen where the leader cards are the thing that must be
+     readable; the targets stay comfortably wide, and the row below grows the
+     tap area back with an invisible ::after the way the speed buttons do. */
+  min-height: 36px;
+  position: relative;
+  padding: var(--s-1) var(--s-3);
+  border-radius: var(--r-sm);
+  color: var(--c-text-dim);
+  font-family: var(--font-display);
+  font-size: var(--f-sm);
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+}
+
+/* The tap target, grown to 44px without growing the control. */
+.setup-option::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 50%;
+  height: var(--tap);
+  transform: translateY(-50%);
+}
+
+.setup-option[aria-pressed='true'] {
+  background: var(--c-surface-2);
+  color: var(--c-text);
+  box-shadow: var(--e-1), var(--e-lip);
+}
+
+.setup-option:active { background: var(--c-surface-3); }
+
 .leader {
   display: flex;
   flex-direction: column;

@@ -257,15 +257,18 @@
    * leader's opening resources under another leader's rules would be a bug
    * nobody would ever find.
    */
-  function onLeaderPicked(leaderId) {
+  function onLeaderPicked(leaderId, setup) {
     Mandate.Audio.sfx('leader');
     Mandate.Audio.reset();
     Mandate.Audio.setScene('run');
     Mandate.State.clearSave();
-    state = Mandate.State.createNewGame(leaderId);
+    state = Mandate.State.createNewGame(leaderId, setup);
     Mandate.Sim.refresh(state);
     Mandate.Sim.log(state, 'system',
-      Mandate.LEADERS.byId(leaderId).title + ' takes office.');
+      Mandate.LEADERS.byId(leaderId).title + ' takes office for ' +
+      Mandate.SETUP.term(state.setup.termId).label.toLowerCase() + ', on ' +
+      Mandate.SETUP.difficulty(state.setup.difficultyId).label.toLowerCase() +
+      '.');
 
     loop.state = state;
     loop.resetClock();

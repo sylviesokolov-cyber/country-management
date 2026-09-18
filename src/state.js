@@ -549,6 +549,48 @@
    * loading.
    * ---------------------------------------------------------------------- */
 
+  /* ------------------------------------------------------------------------
+   * THE REMEMBERED SETUP
+   *
+   * Which difficulty and term the player last chose, kept OUTSIDE the save
+   * for the same reason the audio mixer is: it is a preference about how they
+   * like to play, not a fact about a run, and it must outlive the run it was
+   * chosen for. A blocked or empty localStorage gives the baseline, which is
+   * the right answer for a first-time player anyway.
+   * ---------------------------------------------------------------------- */
+  var SETUP_KEY = 'mandate.setup.v1';
+
+  State.loadSetup = function () {
+    var fallback = {
+      difficultyId: Mandate.SETUP.DEFAULT.difficultyId,
+      termId: Mandate.SETUP.DEFAULT.termId,
+    };
+    try {
+      var parsed = JSON.parse(window.localStorage.getItem(SETUP_KEY));
+      if (!parsed || typeof parsed !== 'object') return fallback;
+      /* Run both through the lookups, which fall back on an unknown id. A
+       * stored difficulty that a later version removed must not strand the
+       * player on a leader screen whose buttons all look unselected. */
+      return {
+        difficultyId: Mandate.SETUP.difficulty(parsed.difficultyId).id,
+        termId: Mandate.SETUP.term(parsed.termId).id,
+      };
+    } catch (err) {
+      return fallback;
+    }
+  };
+
+  State.saveSetup = function (setup) {
+    try {
+      window.localStorage.setItem(SETUP_KEY, JSON.stringify({
+        difficultyId: setup.difficultyId,
+        termId: setup.termId,
+      }));
+    } catch (err) {
+      /* Losing a preference is not worth a word to the player. */
+    }
+  };
+
   State.loadBestScores = function () {
     try {
       var raw = window.localStorage.getItem(Mandate.BALANCE.scoring.bestScoresKey);

@@ -27,14 +27,26 @@
   var View = Mandate.View;
   var node = null;
 
-  var veilEl, gridEl;
+  var veilEl, gridEl, setupEl, subtitleEl;
   var onPick = function () {};
+
+  /* WHICH RULES THE NEXT RUN WILL BE PLAYED UNDER.
+   *
+   * A camera fact, not a world fact — the same distinction View.viewState
+   * draws. Nothing has been decided until a leader is picked, at which point
+   * this is handed to State.createNewGame and becomes part of the save.
+   * Seeded from the last run's choice so a player who likes the hard game
+   * does not re-pick it six times an evening. */
+  var setup = null;
 
   LeaderSelect.build = function (opts) {
     node = View.node;
     onPick = opts.onPick;
     veilEl = Util.el('leader-veil');
     gridEl = Util.el('leader-grid');
+    setupEl = Util.el('leader-setup');
+    subtitleEl = Util.el('leader-subtitle');
+    setup = Mandate.State.loadSetup();
   };
 
   LeaderSelect.isOpen = function () {
@@ -43,14 +55,88 @@
 
   /** Draw the screen fresh — best scores may have changed since last time. */
   LeaderSelect.open = function () {
-    var best = Mandate.State.loadBestScores();
-    gridEl.innerHTML = '';
-    Mandate.LEADERS.forEach(function (leader) {
-      gridEl.appendChild(card(leader, best[leader.id]));
-    });
+    render();
     veilEl.classList.add('is-open');
     veilEl.setAttribute('aria-hidden', 'false');
   };
+
+  /**
+   * Everything on this screen depends on the setup, so changing a setup
+   * control redraws all of it rather than patching pieces.
+   *
+   * The best scores are the reason. They are keyed by leader AND setup, so
+   * switching from Standard to Hard changes which record each card is
+   * showing — and a card still displaying the Standard best under Hard rules
+   * would be quietly lying about what the player is about to beat.
+   */
+  function render() {
+    var best = Mandate.State.loadBestScores();
+    var term = Mandate.SETUP.term(setup.termId);
+
+    View.setText(subtitleEl, term.blurb + ' Sixteen regions that have ' +
+      'heard it all before.');
+
+    setupEl.innerHTML = '';
+    var row = node('div', 'setup-bar__row');
+    row.appendChild(chooser('Difficulty', Mandate.SETUP.DIFFICULTIES,
+      setup.difficultyId, function (id) { setup.difficultyId = id; }));
+    row.appendChild(chooser('Term', Mandate.SETUP.TERMS,
+      setup.termId, function (id) { setup.termId = id; }));
+    setupEl.appendChild(row);
+
+    /* ONE line of explanation for BOTH choices, under the whole bar.
+     *
+     * It was a line per control, inside each button, and on an 844x390 phone
+     * that cost 115px — nearly a third of the screen — to explain a thing you
+     * set once and then scroll past. Worse, three blurbs squeezed into a
+     * button row truncated to "A country that has st…", which is not a
+     * shorter sentence, it is no sentence. */
+    setupEl.appendChild(node('p', 'setup-bar__detail',
+      Mandate.SETUP.difficulty(setup.difficultyId).detail + '  ' + term.detail));
+
+    gridEl.innerHTML = '';
+    Mandate.LEADERS.forEach(function (leader) {
+      gridEl.appendChild(
+        card(leader, best[Mandate.SETUP.scoreKey(leader.id, setup)]));
+    });
+  }
+
+  /**
+   * One segmented control, built from a list of setup options.
+   *
+   * Generic over both lists because a difficulty and a term are the same
+   * shape of thing — an id, a label, a one-line blurb and a payload — and
+   * writing this twice would be two places for them to drift apart.
+   */
+  function chooser(label, options, activeId, onChoose) {
+    var wrap = node('div', 'setup-group');
+    wrap.appendChild(node('div', 'label setup-group__label', label));
+
+    var row = node('div', 'setup-options');
+    row.setAttribute('role', 'group');
+    row.setAttribute('aria-label', label);
+
+    options.forEach(function (option) {
+      var btn = node('button', 'setup-option', option.label);
+      btn.setAttribute('aria-pressed', option.id === activeId ? 'true' : 'false');
+      /* The evocative line is a tooltip on desktop and nothing at all on a
+       * phone, which is correct: the mechanical sentence under the bar is
+       * what a player actually chooses on. */
+      if (option.blurb) btn.title = option.blurb;
+
+      View.onTap(btn, function () {
+        if (option.id === activeId) return;
+        onChoose(option.id);
+        Mandate.State.saveSetup(setup);
+        render();
+      });
+
+      row.appendChild(btn);
+    });
+
+    wrap.appendChild(row);
+    return wrap;
+  }
 
   LeaderSelect.close = function () {
     veilEl.classList.remove('is-open');
@@ -100,7 +186,9 @@
     foot.appendChild(bestEl);
     btn.appendChild(foot);
 
-    View.onTap(btn, function () { onPick(leader.id); });
+    /* The setup goes with the leader, because they are one decision: these
+     * are the rules this government will be judged under. */
+    View.onTap(btn, function () { onPick(leader.id, setup); });
     return btn;
   }
 
