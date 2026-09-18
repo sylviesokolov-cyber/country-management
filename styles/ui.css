@@ -435,6 +435,16 @@
   stroke-width: 3;
 }
 
+/* Keyboard focus. `outline` on an SVG shape renders as a bounding box, not
+   the polygon's own outline, so the base.css `:focus-visible` rule is
+   overridden here with a stroke instead — consistent with how selection is
+   already shown on this same element. */
+.region:focus-visible {
+  outline: none;
+  stroke: var(--c-accent);
+  stroke-width: 3;
+}
+
 /* Pressed feedback. Applied on pointerdown so it appears instantly. */
 .region--pressed { filter: brightness(1.35); }
 
@@ -1523,7 +1533,7 @@
 
 .leader__difficulty { color: var(--c-text-dim); text-transform: uppercase; letter-spacing: 0.05em; }
 .leader[data-difficulty='3'] .leader__difficulty { color: var(--c-band-strained); }
-.leader[data-difficulty='4'] .leader__difficulty { color: var(--c-band-crisis); }
+.leader[data-difficulty='4'] .leader__difficulty { color: var(--c-band-crisis-text); }
 
 .leader__best { font-family: var(--font-num); color: var(--c-treasury); }
 

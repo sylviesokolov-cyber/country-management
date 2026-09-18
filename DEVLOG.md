@@ -677,3 +677,63 @@ Template:
   both have focus styles; nothing else has been checked.
 - Then Phase 6 — and the 12 Play Store testers, still not started, still a
   14-day clock.
+
+## 2026-09-18 — The accessibility pass finishes: contrast audit + focus order
+
+**Built**
+- **The contrast audit.** Computed WCAG 2.1 relative luminance for every text
+  colour token against all three surface tokens (`--c-bg`, `--c-surface`,
+  `--c-surface-2`) it's actually laid over, rather than eyeballing it. Every
+  text colour bar two clears 4.5:1 comfortably (7.6–17.7:1 for body text,
+  8.6–11.8:1 for the five resource colours). The two that didn't:
+  - `--c-text-faint` sat at 3.3:1 on the darkest surface — below AA for the
+    ~28 places it's actually used (days remaining, log timestamps, action
+    costs — small body text, not a "large text" or decorative use that would
+    get the lower 3:1 bar). Lightened to `#808ea6`, which clears 4.5:1
+    everywhere it appears while staying visibly dimmer than `--c-text-dim`.
+  - The difficulty-4 leader label read `--c-band-crisis` (the map's crisis
+    fill colour) as text at 3.2–4:1. The map fill itself is fine — a large
+    coloured region doesn't need text-level contrast, and the token is
+    deliberately part of a ramp regraded to separate in greyscale — so rather
+    than change a colour the map relies on, added one new
+    `--c-band-crisis-text` token (`#d2716e`, 4.75–5.9:1) for this one text use
+    and left the map alone.
+- **The focus-order check**, which turned out to already be sound: every
+  tappable control is a real `<button>` or (the map regions) an SVG
+  `<polygon>` with `tabindex="0"`, `role="button"` and an `aria-label`, Enter
+  and Space both fire through `View.onTap` already, and every closed
+  panel/overlay/veil leaves the tab order via `display: none` or
+  `visibility: hidden` rather than `aria-hidden` alone (which does NOT
+  remove focusability — a real trap this codebase had already avoided). The
+  one gap: toast cards were a bare `<div>` with pointer + keydown handlers
+  but no `tabindex`, so Tab could never reach one. Added `tabindex="0"`.
+- **The actual missing piece: a visible focus ring.** Confirmed by grep —
+  before this, exactly one control in the whole game (the volume slider) ever
+  showed where keyboard focus was. Everything else was reachable and
+  operable but invisible while focused, which is a real barrier for anyone
+  not using a pointer. One rule in `base.css`,
+  `button, a, input, [tabindex] { &:focus-visible { outline: ...} }`, using
+  `:focus-visible` rather than `:focus` so a tap or click never shows a ring —
+  only keyboard/switch-access focus does. The map regions get a stroke
+  override instead of the outline (an SVG `<polygon>` doesn't have a
+  rectangular box for `outline` to trace), reusing the same accent colour and
+  sitting next to the existing `.region--selected`/`.region--pressed` states
+  it's now grouped with.
+
+**Broke / learned**
+- Nothing broke. This was pure audit-and-patch: no new files, ~40 lines
+  changed across `base.css`, `ui.css` and `alerts.js`, and every number in
+  the audit is reproducible from the six hex values in `base.css` — WCAG's
+  relative-luminance formula, not a tool or a guess.
+- The reason nobody had noticed the missing focus ring: the game is built
+  pointer-first (`View.onTap` exists specifically to dodge the 300ms `click`
+  delay), so every manual test of it so far has been a tap or a mouse click,
+  neither of which was ever going to surface a `:focus-visible` gap.
+
+**Next**
+- That closes every non-playtest Phase 5 item. What's left is entirely "a
+  human has to do this": the 45–60 minute session length, whether the score
+  sounds good on a phone speaker, and whether a player who's actually going
+  for a national project sees more of them than the harness does.
+- Then Phase 6 and the Play Store testers — still not started, still a
+  14-day clock once it is.
