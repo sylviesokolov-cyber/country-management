@@ -785,7 +785,8 @@
       Sim.log(state, flippedRegion.inRevolt ? 'revolt' : 'order',
         flippedRegion.inRevolt
           ? name + ' has risen in open revolt. It will not be governed from a chequebook.'
-          : 'Order restored in ' + name + '.');
+          : 'Order restored in ' + name + '.',
+        flippedRegion.id);
       if (flippedRegion.inRevolt) state.stats.revoltsStarted += 1;
     }
 
@@ -1770,9 +1771,20 @@
    * every autosave. The oldest go first: what a player reads back is the
    * recent past.
    */
-  Sim.log = function (state, kind, text) {
+  /**
+   * Write a line of history.
+   *
+   * `regionId` is optional and is the only part of an entry the UI acts on
+   * rather than prints: a line that names a province becomes a row you can
+   * tap to go there. It is stored rather than parsed back out of `text`,
+   * because "which province is this about" is something the caller knows for
+   * certain and a reader of the sentence can only guess at.
+   */
+  Sim.log = function (state, kind, text, regionId) {
     if (!state.log) state.log = [];
-    state.log.push({ day: state.day, kind: kind, text: text });
+    var entry = { day: state.day, kind: kind, text: text };
+    if (regionId) entry.regionId = regionId;
+    state.log.push(entry);
     var max = Mandate.BALANCE.log.maxEntries;
     if (state.log.length > max) state.log.splice(0, state.log.length - max);
   };
@@ -2086,7 +2098,8 @@
     }
 
     Sim.log(state, 'event',
-      Sim.fillText(state, choice.log || event.title, pending.regionId));
+      Sim.fillText(state, choice.log || event.title, pending.regionId),
+      pending.regionId);
     state.stats.eventsResolved += 1;
     state.events.pending = null;
 

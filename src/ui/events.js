@@ -192,8 +192,31 @@
     var list = node('div', 'log-list');
     /* Newest first: the thing you want is almost always the last thing. */
     state.log.slice().reverse().forEach(function (entry) {
-      var row = node('div', 'log-row');
+      /* A line that knows which province it is about becomes a way to GET
+       * there. Until now the only thing in the game that could take you to a
+       * region by name was a toast, which expires after seven seconds — so
+       * "Duskmoor has risen in open revolt" was actionable for seven seconds
+       * and was history forever afterwards. This is the pattern every 4X
+       * uses for its notification list, and the reason they all use it: the
+       * feed and the map are the same subject.
+       *
+       * A `<button>` only when there is somewhere to go, so the run log does
+       * not fill up with rows that look pressable and do nothing. The region
+       * is re-checked against the live state rather than trusted, because the
+       * log outlives everything except the run itself. */
+      var target = entry.regionId &&
+        Mandate.State.regionById(state, entry.regionId) ? entry.regionId : null;
+
+      var row = node(target ? 'button' : 'div', 'log-row');
       row.dataset.kind = entry.kind;
+
+      if (target) {
+        row.classList.add('log-row--goto');
+        row.dataset.sfx = 'open';
+        var def = Mandate.State.regionDef(target) || {};
+        row.setAttribute('aria-label', entry.text + ' — open ' + (def.name || target));
+        View.onTap(row, function () { handlers.onPickRegion(target); });
+      }
 
       var icon = node('span', 'log-row__icon');
       icon.dataset.kind = entry.kind;

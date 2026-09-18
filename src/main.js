@@ -107,7 +107,11 @@
       onPickRegion: onPickRegionFromList,
     });
 
-    Mandate.EventUI.build({ onChoose: onEventChoice });
+    Mandate.EventUI.build({
+      onChoose: onEventChoice,
+      /* The run log's rows go to the same place the Regions list does. */
+      onPickRegion: onPickRegionFromList,
+    });
     Mandate.LeaderSelect.build({ onPick: onLeaderPicked });
 
     Mandate.View.onTap(Util.el('veil-restart'), function () {

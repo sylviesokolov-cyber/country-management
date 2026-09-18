@@ -1760,6 +1760,38 @@
   font-size: var(--f-xs);
 }
 
+/* A row that goes somewhere. Rendered as a <button> by src/ui/events.js only
+   when the entry names a province that still exists, so everything here is
+   describing a row that really is pressable.
+
+   Deliberately quiet: the run log is read as prose far more often than it is
+   used as a menu, and a list where a third of the rows are styled as buttons
+   stops reading as a record of a term. A chevron and a hover state are
+   enough — the same amount of affordance the region list uses. */
+.log-row--goto {
+  width: 100%;
+  text-align: left;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+
+.log-row--goto::after {
+  content: '\203a';            /* a single right-pointing angle quote */
+  margin-left: auto;
+  padding-left: var(--s-2);
+  color: var(--c-text-faint);
+  font-size: var(--f-sm);
+  line-height: 1;
+}
+
+.log-row--goto:active { background: var(--c-surface-3); }
+
+@media (hover: hover) {
+  .log-row--goto:hover { background: var(--c-surface-3); }
+  .log-row--goto:hover::after { color: var(--c-text); }
+}
+
 .log-row__icon { flex: 0 0 auto; color: var(--c-text-faint); }
 .log-row__body { min-width: 0; flex: 1 1 auto; }
 .log-row__text { color: var(--c-text); line-height: 1.3; }
