@@ -719,3 +719,83 @@ else in the harness ever changes its mind, and a player would.
 - Patch fatigue is still doing less than it looks (carried from Phase 5).
 - A revolt can still raze a frontier region to 0 development (carried from
   Phase 5).
+
+---
+
+## Phase 6 prep — the difficulty ladder (balance v6, unchanged)
+
+Reproduce everything below with:
+
+```
+node tools/harness.js --ladder --seeds 4          # the whole ladder
+node tools/harness.js --compare --difficulty hard # one rung, by strategy
+node tools/harness.js --audit                     # invariants only
+```
+
+`data/setup.js` adds three difficulties and two term lengths. Both are
+ordinary `mods` payloads merged by `src/modifiers.js`, so nothing in the
+simulation branches on either.
+
+### The baseline is genuinely the baseline
+
+`standard` + `full` carry **empty payloads**, and this was checked rather than
+assumed: a full `--seeds 3` sweep against the previous commit is byte-identical
+to one against this one. **Every number above this section still holds.**
+
+### The ladder, 96 runs per rung (6 leaders x 4 strategies x 4 seeds)
+
+| difficulty | term | won | days | score | stab | dev | tech |
+|---|---|---|---|---|---|---|---|
+| steady | short | 49/96 | 1,529 | 8,164 | 53.8 | 432 | 6.9 |
+| steady | full | 58/96 | 2,919 | 14,255 | 70.2 | 897 | 12.8 |
+| standard | short | 15/96 | 1,440 | 4,827 | 47.0 | 319 | 5.1 |
+| standard | full | 21/96 | 2,672 | 8,475 | 55.5 | 526 | 9.2 |
+| hard | short | 0/96 | 1,316 | 3,355 | 44.7 | 296 | 3.9 |
+| hard | full | 5/96 | 2,281 | 5,573 | 47.6 | 394 | 6.4 |
+
+Monotonic down the difficulty axis, and the term axis is nearly
+difficulty-neutral (60% vs 51%, 22% vs 16%, 5% vs 0%) — which is the point.
+Length and difficulty are two controls and should not be one.
+
+### Three wrong numbers, all caught by arithmetic rather than by a playtest
+
+`Setup.audit()` encodes DESIGN.md §2.8 — **a term must never be survivable by
+a player who does nothing** — and the harness runs it on every sweep.
+
+1. **Steady at `mandateDecay.mult` 0.82** put idle survival at 4,065 days
+   against a 3,650-day term. An easy mode that could be won by putting the
+   phone down.
+2. **Steady at 0.95** fixed the full term (3,509 days) but the multipliers
+   *compound*: 0.03 × 0.95 × 1.93 emptied the meter on day 1,818 of an
+   1,825-day term. Seven days of margin.
+3. So **Steady does not touch the clock at all.** An easier game makes the
+   country better — richer provinces, faster consent and research, a higher
+   floor for a neglected region, unrest that travels less — and the relief
+   reaches the clock only through the approval that better government earns.
+   That keeps the invariant true for free at every term length.
+
+The short term runs the clock at **1.93x** over half the days, which is the
+tightest the `steady` pairing allows. It is not the 2x speed button in
+disguise: per-day rates are untouched, so a five-year government earns,
+researches and builds at the same speed and simply gets half as far. Tech
+completed falls from 9.2 to 5.1 on standard — you pick a branch and commit.
+
+### Hard was a wall before it was a difficulty
+
+First cut (decay 1.22, output 0.90, pc 0.85, research 0.88, natural −4,
+neighbour 1.25) went **0/96 on both terms** — every knob compounding over
+3,650 days is a different game, not a harder one. Halving all six
+(1.06 / 0.97 / 0.95 / 0.97 / −1.5 / 1.08) puts the strongest strategy at
+4/24 where standard gives it 9/24.
+
+### Still open
+
+- **`hard` + `short` is 0/48 for the best harness strategy**, dying around day
+  1,545–1,670 of 1,825 — 85–91% of the way. `m:base` is 96–98%, i.e. baseline
+  decay is what kills it, and these strategies only reach stability 47–52
+  against an approval pivot of 50, so they earn almost no relief. A human who
+  holds stability higher should close that gap, but nothing has confirmed it.
+  Treat the hardest corner as unproven.
+- The harness strategies do not know difficulty exists. They do not play more
+  cautiously on `hard`, which is exactly what a human would do, so every
+  number in the table is a floor.

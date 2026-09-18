@@ -171,7 +171,8 @@ Tick items off as they land, and note anything deferred in `DEVLOG.md`.
       cannot be loaded is *cleared* rather than left to break every boot.
       `State.isUsable()` + a v4 → v5 migration step, both tested
 - [ ] Verify a run lands in the 45–60 minute window **with a human playing it**
-      (the harness says 3,650 days × 900ms = 55 minutes, but a human pauses)
+      (the harness says 3,650 days × 900ms = 55 minutes, but a human pauses).
+      There is now a short term too, at 1,825 days / ~28 minutes
 - [ ] **Playtest the projects.** The harness completes one in about a third of
       runs, but its strategies never plan for one — so most of the measured
       improvement above comes from the Invest surcharge rather than from the
@@ -236,8 +237,77 @@ Tick items off as they land, and note anything deferred in `DEVLOG.md`.
       outside the save
 - [ ] Test on a small phone (667×375 landscape) and a large one; check
       notch/gesture-bar insets on a real device, held both ways round
-- [ ] Consider map pan/zoom now that the map is full-bleed
+- [ ] Consider map pan/zoom now that the map is full-bleed. *Deprioritised
+      against the data layers above, which shipped instead: on a 16-region map
+      that already fits the screen, asking it a different question is worth
+      more than moving the camera around it*
 - [ ] Replace placeholder region names and the map, if a real one is wanted
+
+---
+
+## Phase 5c — closing the gap to a Civ-like
+
+*Driven by a feature comparison against **Unciv** (read from source, not
+memory) — see the DEVLOG entry of 2026-09-18 for the full gap analysis. Most
+of Civ's feature list is deliberately **not** on this list: units, combat,
+city founding, rival empires and multiple victory conditions all break the
+45–60 minute single-sitting constraint the whole design hangs off. What is
+here are the things a Civ-like has that Mandate lacks and that fit the genre
+it actually belongs to.*
+
+- [x] **Difficulty levels and term lengths** (`data/setup.js`) — three
+      difficulties, two term lengths, both ordinary `mods` payloads merged by
+      `src/modifiers.js` like a leader's, so nothing in the simulation
+      branches on either. Schema v6 → v7, best scores keyed by leader+setup,
+      term length read through `Sim.termDays(state)`. `Setup.audit()` turns
+      the never-waitable-term invariant into arithmetic the harness checks,
+      and it caught three bad numbers before any playtest could. The ladder is
+      measured over 96 runs a rung in `BALANCE.md`
+- [x] **Run-log rows jump to the province they name** — the Unciv/4X
+      notification pattern. Before this the only thing that could take you to
+      a province by name was a toast, which expires after seven seconds
+- [x] **Map data layers** — stability, development and output, on the empty
+      middle-left HUD rail. Two of the three numbers that decide a province's
+      worth were invisible on the screen the player looks at all game
+- [ ] **Make terrain mechanical.** The five types already exist and are used
+      for exactly two things: a glyph on the map and a word in the panel.
+      `data/regions.js` already names `data/balance.js` as their home
+      ("terrain multipliers, when they exist, belong in balance.js"). Highland
+      resists garrisons, coastal earns from trade tech, industry scales with
+      development, frontier decays faster. No new mechanism — a modifier
+      lookup. This is what stops 16 regions being 16 identical sliders
+- [ ] **Factions** — 3–4 domestic blocs (army, capital, provinces, street)
+      with standing approval that reacts to your policies, makes demands and
+      can force a crisis. **Nothing in the game currently wants anything**:
+      the opposition is impersonal drift plus a filtered event deck, and this
+      is the largest remaining difference from a Civ-like. It is also what the
+      Phase 5 flat-late-game work kept circling without naming
+- [ ] **Per-region build options** — a small menu of 3–5 mutually constraining
+      choices, so a province can become *a thing* rather than a number that
+      goes up. Civ cities have a production queue; Mandate regions have the
+      same five actions forever
+- [ ] **A Codex tab** — Civilopedia is a first-class searchable screen in
+      every Civ-like. A player who forgets what "natural stability" means has
+      nowhere to look. Mostly generated: tech, policies, projects and traits
+      all already carry blurbs
+- [ ] **Split the seven-tab overlay along act/review lines.** `btn-ministry`
+      and `btn-regions` currently open the *same* overlay at different tabs,
+      and the strip scrolls because seven tabs do not fit in 844px. Unciv
+      splits pickers (act) from the overview (review); doing the same takes
+      each strip to 3–4 tabs
+- [ ] **Keep the region panel's context when the Ministry opens** — Unciv
+      keeps the selected tile visible in the bottom bar while you work
+      elsewhere; here, opening a tab loses the province you were looking at
+- [ ] **A "needs attention" signal** — unspent Political Capital, an empty
+      research queue, unfilled appointee slots. The real-time equivalent of
+      Unciv's next-turn button, which is really a priority queue of pending
+      decisions (`PickTech → PickPolicy → PickConstruction → …`) and is why a
+      Civ player is never idle by accident. Nothing here tells a player they
+      are coasting, which is the exact failure mode `DESIGN.md` §1 says the
+      game exists to prevent
+- [ ] **Seeded start variation.** Civ randomises the map every game; every
+      Mandate run starts from the identical 16 regions with identical numbers.
+      The seeded RNG already lives in the save
 
 ---
 

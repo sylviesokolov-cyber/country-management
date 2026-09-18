@@ -737,3 +737,74 @@ Template:
   for a national project sees more of them than the harness does.
 - Then Phase 6 and the Play Store testers — still not started, still a
   14-day clock once it is.
+
+## 2026-09-18 — What a Civ-like has that this does not, and the first three answers
+
+**Built**
+- Compared Mandate against **Unciv** (cloned and read, not recalled): 80 techs,
+  125 buildings, 127 units, 70 policies, 36 mechanical terrains, 37 tile
+  resources, 83 nations, **8 difficulties, 4 game speeds**, 5 victory types.
+  Most of that list is a trap here — units, combat, city founding, rival
+  empires and five victory conditions all break the 45–60 minute single-sitting
+  constraint the whole design hangs off. The rows worth taking seriously were
+  the **zeros**: no difficulty, no run-length choice, no buildings, and
+  `terrain` that is still flavour (verified: it appears in `map.js` as a glyph
+  and `panel.js` as a label, and **nowhere in `sim.js` or `balance.js`**).
+- **`data/setup.js`** — three difficulties and two term lengths, both as
+  ordinary `mods` payloads merged by `src/modifiers.js` like a leader's. No
+  `if (difficulty === ...)` anywhere in `src/`. Schema v6 → v7; best scores
+  keyed by leader+setup; term length moved out of `balance.js` and read
+  through `Sim.termDays(state)`, so a save knows the rules it was played under.
+- **A setup bar on the leader screen**, built from the data file, remembered
+  outside the save like the audio mixer.
+- **Run-log rows jump to the province they name.** Entries carry an optional
+  `regionId`, set by the two callers that know one for certain. Until now the
+  only thing that could take you to a province by name was a toast — so a
+  revolt was actionable for seven seconds and was history forever after.
+- **Three map data layers** — stability, development, output — on the empty
+  middle-left HUD rail. Each is a function from a region to a band id, so all
+  three reuse the existing five-band ramp.
+
+**Broke / learned**
+- **`Setup.audit()` caught three bad numbers I wrote, before any playtest
+  could.** DESIGN.md §2.8 says a term must never be survivable by idling, and
+  that is arithmetic, so it is now a check the harness runs. Steady at 0.82
+  clock let an idle player win a full term outright. At 0.95 it passed the full
+  term and then failed the short one, because **the multipliers compound** —
+  seven days of margin on 1,825. The answer was that an easier game must not
+  touch the clock at all: it makes the *country* better and lets approval
+  earn the relief. An invariant you can write as a formula should never be a
+  thing you remember.
+- **Hard was a wall before it was a difficulty.** Six knobs at −10% each
+  compound over 3,650 days into a different game: 0/96. Halved, it is 4/24 for
+  the best strategy against standard's 9/24.
+- **Term length and difficulty have to be measured as two axes.** The first
+  short term was *harder* than the full term at every difficulty, which makes
+  the two controls one control. Tuning the short clock to the tightest the
+  invariant allows got them to within a few points of each other.
+- **The band memo and the band classes are one thing.** Clearing `lastBand` on
+  a layer switch left the old class on the node and added the new one on top —
+  every region wore two bands and all three layers painted identically. The
+  memo has to be cleared together with the thing it is a memo of.
+- **The first setup bar cost 115px of a 390px screen** to explain a choice you
+  make once, and truncated its own blurbs to "A country that has st…". Buttons
+  are label-only now with one shared line underneath, at 60px.
+- Set up headless Chromium against the real `index.html` at 844×390 for all of
+  this. Every claim above about the UI was checked by driving it.
+
+**Next**
+- The gap analysis says the next two things are **mechanical terrain** (the
+  five types already exist and `regions.js` names `balance.js` as their home)
+  and then **factions** — 3–4 domestic blocs with standing approval that react
+  to policy. Nothing in the game currently *wants* anything, which is the
+  largest remaining difference from a Civ-like and the thing the flat-late-game
+  work kept circling without naming.
+- Smaller, already scoped: split the seven-tab overlay along act/review lines
+  (both HUD buttons currently open the same overlay), keep the region panel's
+  context when the Ministry opens, and add a "needs attention" signal —
+  unspent Political Capital, empty research queue, unfilled slots — which is
+  the real-time equivalent of Unciv's next-turn button being a queue of
+  pending decisions rather than a button.
+- Still human-only: the 45–60 minute window, the score on a phone speaker,
+  playtesting the projects, and now **hard + short**, which the harness has
+  never won.
