@@ -16,8 +16,15 @@
 /* ---------------------------------------------------------------------------
  * HUD ANCHORS — where each cluster sits in the 3x3 .hud grid
  * ------------------------------------------------------------------------ */
-.hud-topleft     { grid-area: 1 / 1; justify-self: start; }
-.hud-topright    { grid-area: 1 / 3; justify-self: end; }
+/* `align-self: start` on both, and it is load-bearing rather than tidiness.
+   A grid item defaults to `align-self: stretch`, so the top row's two cards
+   were each being stretched to the height of the TALLER one. With the region
+   panel open on a 667x375 phone the resource chips wrap to three rows, and
+   the clock — whose own content is a single 28px line — was stretched to
+   match at 105px: a quarter of the screen height in glass, sitting over the
+   country, with its contents floating in the middle of it. */
+.hud-topleft     { grid-area: 1 / 1; justify-self: start; align-self: start; }
+.hud-topright    { grid-area: 1 / 3; justify-self: end; align-self: start; }
 .hud-rail        { grid-area: 2 / 3; justify-self: end; align-self: start; }
 /* The map-layer rail takes the middle-left cell — the one HUD anchor that was
    empty, and in landscape the spot a left thumb actually rests on. It mirrors
@@ -30,7 +37,22 @@
    is load-bearing: a grid item's automatic minimum size is its CONTENT, so
    without it a long headline widens the middle column and shoves the corner
    buttons off the screen. */
-.ticker          { grid-area: 3 / 2; align-self: end; justify-self: stretch; min-width: 0; }
+/* The ticker is NOT a grid item, for the same reason the toast stack isn't.
+   As `grid-area: 3/2` with `justify-self: stretch` it still carried
+   `margin: 0 auto`, and an auto margin defeats the stretch: the item sizes to
+   its own content instead of its track. With the region panel open that track
+   is 26px wide and the ticker rendered at 443px — overflowing straight across
+   column 3 and printing the news underneath the Regions button. Anchored
+   against the same named edges the grid's padding uses, it can never reach
+   either corner button at any width. */
+.ticker {
+  position: absolute;
+  bottom: var(--hud-pad-bottom);
+  /* 110px clears a ~102px corner button plus the grid gap, both sides. */
+  left: calc(var(--hud-pad-left) + 110px);
+  right: calc(var(--hud-pad-right) + 110px);
+  margin-inline: auto;
+}
 
 /* The toast stack and the Mandate breakdown are deliberately NOT grid items.
    Both have a fixed width, and a fixed-width item in a `1fr` track sets that
@@ -368,19 +390,11 @@
  * THE MAP
  * ------------------------------------------------------------------------ */
 
-/* A soft dark scrim along the top and bottom edges. The HUD floats over the
-   map, and a green (secure) region directly under a chip would wash the text
-   out — this guarantees contrast wherever the HUD sits, without dimming the
-   middle of the map. Click-through, so it never eats a tap. */
-.map-layer::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  background:
-    linear-gradient(to bottom, rgba(8, 11, 16, 0.55) 0%, rgba(8, 11, 16, 0) 14%,
-                    rgba(8, 11, 16, 0) 84%, rgba(8, 11, 16, 0.55) 100%);
-}
+/* The HUD contrast scrim and the vignette are ONE rule, further down, next to
+   the sea. They were two `.map-layer::after` blocks in two different sections
+   of this file, which is not two effects — the second silently replaced the
+   first, and the scrim that is supposed to guarantee the HUD contrast against
+   a bright region had not been painting at all. */
 .map {
   display: block;
   width: 100%;
@@ -403,8 +417,14 @@
   fill: var(--region-fill, url(#band-strained));
   /* Internal borders are a light hairline rather than a heavy black one.
      Black outlines at 1.5px made the map read as stained glass; what the
-     player needs to see is the country, with divisions in it. */
-  stroke: rgba(255, 255, 255, 0.14);
+     player needs to see is the country, with divisions in it.
+
+     Raised from .14 to .22: at .14 sixteen provinces in the same band — the
+     normal state of a country that is being governed evenly — dissolved into
+     one gold slab, and the map stopped showing that it had provinces at all.
+     A border has to survive its two neighbours being the same colour, which
+     is exactly the case a choropleth is worst at. */
+  stroke: rgba(255, 255, 255, 0.22);
   stroke-width: 1;
   stroke-linejoin: round;
   transition: fill 400ms linear, filter 200ms ease-out;
@@ -420,7 +440,23 @@
 /* The shadow caster: one flat copy of the landmass under the real regions.
    Its colour never shows — only the blur it feeds — so it just has to be
    opaque. */
-.region-ghost { fill: #000; }
+/* The shadow caster, and now also the COASTLINE.
+ *
+ * Each ghost is a black copy of one region, drawn as a group underneath the
+ * real ones. Stroking them individually would draw every internal border too
+ * — except that the real regions paint on top and cover exactly the internal
+ * half of every stroke. What survives is only the outside edge of the union
+ * of all sixteen: the outline of the country, for one declaration and no
+ * extra geometry.
+ *
+ * It matters because a landmass with no edge reads as a fill that happens to
+ * stop, which is what this looked like. A country needs a coast. */
+.region-ghost {
+  fill: #000;
+  stroke: rgba(150, 196, 255, 0.28);
+  stroke-width: 3;
+  stroke-linejoin: round;
+}
 
 /* A faint glyph of the region's terrain, behind its name. Low enough not to
    compete with the label, present enough that the map has texture. */
@@ -523,16 +559,41 @@
     linear-gradient(180deg, var(--c-bg-2) 0%, var(--c-bg) 100%);
 }
 
-/* A vignette over the whole playfield, so the corners fall away and the HUD
-   chips sitting in them always have something darker behind them. Purely
-   decorative, and it must never eat a tap meant for the map. */
+/* Everything painted OVER the country: the vignette, so the corners fall away
+   and the HUD always has something darker behind it, and the top/bottom scrim,
+   so a secure (bright green) region directly under a resource chip cannot wash
+   the text out. One rule, because they are one layer — as two `::after` blocks
+   the second just replaced the first.
+
+   Order matters: the scrim is listed first so it paints ON TOP of the
+   vignette at the edges where the HUD actually sits. Click-through, always —
+   this must never eat a tap meant for a region. */
 .map-layer::after {
   content: '';
   position: absolute;
   inset: 0;
   pointer-events: none;
-  background: radial-gradient(ellipse 85% 85% at 50% 50%,
-    transparent 40%, rgba(0, 0, 0, 0.55) 100%);
+  background:
+    linear-gradient(to bottom, rgba(8, 11, 16, 0.55) 0%, rgba(8, 11, 16, 0) 14%,
+                    rgba(8, 11, 16, 0) 84%, rgba(8, 11, 16, 0.55) 100%),
+    radial-gradient(ellipse 85% 85% at 50% 50%,
+      transparent 40%, rgba(0, 0, 0, 0.55) 100%);
+}
+
+/* Grain over the whole playfield, land and sea alike.
+   `z-index: 1` with `position: absolute` is what lifts it above the <svg>
+   sibling: a pseudo-element otherwise paints behind its parent's real
+   children, and the map would have covered it completely. Fine enough to be
+   invisible as texture and entirely visible as the difference between a
+   printed map and a vector fill. */
+.map-layer::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  background-image: var(--grain);
+  opacity: 0.05;
 }
 
 /* ---------------------------------------------------------------------------
@@ -904,7 +965,12 @@
   flex: 1 1 auto;
   min-width: 0;
   overflow: hidden;
-  overflow-wrap: break-word;
+  /* Truncate, never break mid-word. `overflow-wrap: break-word` turned
+     "Duskmoor" into "Duskmoo" / "r" the moment anything else in the row got
+     wider — which is exactly what the REVOLT tag does. One clipped name with
+     an ellipsis reads as a list; a word snapped in half reads as a bug. */
+  white-space: nowrap;
+  text-overflow: ellipsis;
   font-size: var(--f-xs);
   color: var(--c-text);
 }
@@ -1433,6 +1499,11 @@
   font-size: var(--f-xs);
   color: var(--c-text-faint);
   letter-spacing: 0.02em;
+  /* "YEAR 1 OF 10" was breaking after "OF" and pushing the clock from 38px
+     to 79px tall — 105px on a 667x375 phone, where it took three lines and
+     clipped the date. A label that wraps inside a fixed-height HUD chip is
+     always wrong; if it does not fit, it goes (below). */
+  white-space: nowrap;
 }
 
 /* --- shared: a scrolling full-screen surface ---------------------------- */
@@ -1467,72 +1538,82 @@
 /* ---------------------------------------------------------------------------
  * THE MAP LAYER SWITCH (middle-left)
  *
- * Three buttons asking the map three different questions. Deliberately small
- * and low-contrast: it is a lens, not a control the player acts through, and
- * it sits directly over the country it is describing.
+ * Three icons asking the map three different questions. ICONS ONLY, and the
+ * words arrive as a caption for a couple of seconds when the layer changes.
+ *
+ * This shipped as three labelled buttons over a permanent three-line legend
+ * and measured 154x162px: 7.6% of an 844x390 screen and 10% of a 667x375 one,
+ * larger than the resource chips, the clock, the Mandate gauge and both
+ * corner buttons combined, hiding up to four region names behind it. A lens
+ * onto the country is not worth a tenth of the country. At 40px wide it is
+ * now the smallest thing on the HUD, which is the right size for a control
+ * that answers a question rather than takes an action.
  * ------------------------------------------------------------------------ */
 .layer-switch {
   display: flex;
   flex-direction: column;
-  padding: 3px;
-  /* As narrow as the legend will allow. This card floats OVER the country and
-     takes its own taps (`.hud > *` opts back into pointer-events), so every
-     pixel of it is a pixel of map that cannot be tapped — the one real cost
-     of putting a lens on the HUD rather than behind a tab. The legend stays
-     visible rather than becoming a `title`, because DESIGN.md's rule holds:
-     there is no hover on a phone. */
-  max-width: 17ch;
-}
-
-.layer-switch__buttons {
-  display: flex;
-  flex-direction: column;
   gap: 2px;
+  padding: 3px;
 }
 
 .layer-btn {
-  display: flex;
-  align-items: center;
-  gap: var(--s-2);
-  /* 32px rather than the 44px floor, with the tap area grown back below —
-   * three 44px rows would be 132px of a 390px screen spent on a lens. */
-  min-height: 32px;
+  display: grid;
+  place-items: center;
+  /* 30px rather than the 44px floor, with the tap area grown back below.
+     Three 44px rows would be 132px of a 390px-tall screen spent on a lens. */
+  width: 30px;
+  height: 30px;
   position: relative;
-  padding: 0 var(--s-2);
   border-radius: var(--r-sm);
   color: var(--c-text-faint);
-  font-family: var(--font-display);
-  font-size: var(--f-xs);
-  font-weight: 600;
-  letter-spacing: var(--track-label);
-  text-transform: uppercase;
-  white-space: nowrap;
+  transition: color 140ms ease-out, background-color 140ms ease-out;
 }
 
 /* The real tap target, at the full 44px, without changing the visual size. */
 .layer-btn::after {
   content: '';
   position: absolute;
-  inset: -6px -4px;
+  inset: -7px;
 }
 
-.layer-btn__icon { font-size: var(--f-sm); }
+.layer-btn__icon { font-size: var(--f-md); }
 
 .layer-btn[aria-pressed='true'] {
   background: var(--c-surface-2);
-  color: var(--c-text);
-  box-shadow: var(--e-lip);
+  color: var(--c-accent);
+  box-shadow: var(--e-lip), var(--glow-accent);
 }
 
 .layer-btn:active { background: var(--c-surface-3); }
 
-.layer-legend {
-  margin: var(--s-1) 0 0;
-  padding: var(--s-1) var(--s-2) 0;
-  border-top: 1px solid var(--c-line);
+/* The caption. Sits beside the rail rather than under it, because under it is
+   where the Ministry button already is on a short screen. */
+.layer-caption {
+  margin: var(--s-2) 0 0;
+  max-width: 22ch;
+  padding: var(--s-1) var(--s-2);
+  border-radius: var(--r-sm);
+  background: rgba(8, 12, 20, 0.86);
+  border: 1px solid var(--c-line);
+  box-shadow: var(--e-1);
   font-size: var(--f-xs);
   line-height: 1.25;
   color: var(--c-text-dim);
+  /* Hidden by default and never taking a tap: it is an announcement, not a
+     control, and the map underneath it must stay reachable. */
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transform: translateY(-2px);
+  transition: opacity 180ms ease-out, transform 180ms ease-out,
+              visibility 0s linear 180ms;
+}
+
+.layer-caption.is-on {
+  opacity: 1;
+  visibility: visible;
+  transform: none;
+  transition: opacity 140ms ease-out, transform 140ms ease-out, visibility 0s;
 }
 
 /* ---------------------------------------------------------------------------
@@ -2080,7 +2161,6 @@
   gap: var(--s-2);
   min-height: 28px;
   max-width: 560px;
-  margin: 0 auto;
   padding: var(--s-1) var(--s-3);
   border: 1px solid var(--c-line);
   border-radius: 999px;
@@ -2148,42 +2228,78 @@
   margin-inline: auto;
   display: flex;
   flex-direction: column;
-  gap: var(--s-2);
-  width: min(340px, 60vw);
+  gap: var(--s-1);
+  /* Narrower than it was (340px). Two of these now stack instead of three,
+     and a narrower card over the middle of the map leaves more of the
+     country legible either side of it. */
+  width: min(300px, 46vw);
   /* The stack itself must not eat taps aimed at the map behind it — only the
      toasts inside it do. */
   pointer-events: none;
 }
 
+/* A toast is an INTERRUPTION THAT DOES NOT INTERRUPT, so it has to be small.
+   Three at the old size covered 19% of an 844x390 screen and 25% of a
+   667x375 one, and between them hid ten of the sixteen region names — a
+   notification system that reports the country by covering it. The stack is
+   capped at two in src/ui/alerts.js and each card is now about two thirds
+   the height it was. */
 .toast {
   pointer-events: auto;
-  padding: var(--s-2) var(--s-3);
+  position: relative;
+  padding: 6px var(--s-3) 6px var(--s-2);
   border: 1px solid var(--c-line);
-  border-left-width: 3px;
-  border-radius: var(--r-md);
-  background: rgba(13, 17, 23, 0.92);
+  border-radius: var(--r-sm);
+  background: rgba(13, 17, 23, 0.94);
+  box-shadow: var(--e-2), var(--bevel);
   backdrop-filter: blur(10px) saturate(1.2);
   -webkit-backdrop-filter: blur(10px) saturate(1.2);
   animation: toast-in 240ms ease-out;
+  overflow: hidden;
+}
+
+/* The tone stripe, as a painted element rather than a fat left border: a
+   3px border sat outside the radius and squared off the card's left corners.
+   This one is inset and follows the curve. */
+.toast::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  background: var(--toast-tone, var(--c-line-strong));
+  box-shadow: 0 0 10px -1px var(--toast-tone, transparent);
 }
 
 .toast--tappable { cursor: pointer; }
 .toast--tappable:active { background: var(--c-surface-2); }
 
-.toast--bad  { border-left-color: var(--c-danger); }
-.toast--warn { border-left-color: var(--c-band-strained); }
-.toast--good { border-left-color: var(--c-band-secure); }
+.toast--bad  { --toast-tone: var(--c-danger); }
+.toast--warn { --toast-tone: var(--c-band-strained); }
+.toast--good { --toast-tone: var(--c-band-secure); }
 
 .toast__title {
-  font-size: var(--f-sm);
+  font-size: var(--f-xs);
   font-weight: 600;
+  line-height: 1.25;
   color: var(--c-text);
 }
 
+/* The detail line is the first thing to go when space is short: the title
+   already names the province and the event, which is the whole alert. */
 .toast__detail {
-  margin-top: 2px;
+  margin-top: 1px;
   font-size: var(--f-xs);
+  line-height: 1.2;
   color: var(--c-text-dim);
+}
+
+/* 370px, not 400px: a standard landscape phone is 390-430px tall, so a 400px
+   breakpoint dropped the advice line ("Troops or emergency relief") on the
+   most common device there is. Only genuinely tiny screens lose it now. */
+@media (max-height: 370px) {
+  .toast__detail { display: none; }
 }
 
 .toast--out {
@@ -2964,3 +3080,168 @@
 }
 
 .bar__fill--project { background: var(--c-treasury); }
+
+/* ===========================================================================
+   THE PREMIUM PASS
+   ---------------------------------------------------------------------------
+   The art pass above gave the game an icon system, a typeface and a map that
+   reads as a country. What it left behind was a set of SURFACES that are all
+   the same flat rectangle: a dark fill, a 1px grey border, one shadow. That
+   is what separates a competent dark interface from one that looks bought.
+
+   Three techniques, applied systematically rather than per component, and all
+   three are load-bearing together — drop any one and it flattens back out:
+
+     BEVEL   every raised surface catches light on its top edge and loses it
+             on the bottom (`--bevel`). One pixel of each. This is the single
+             largest difference and it costs nothing.
+     GLOW    an active control emits light in its own hue rather than merely
+             swapping its background (`--glow-accent`). A state you can see
+             from the corner of your eye.
+     GRAIN   large dark fills carry a fine noise (`--grain`). Invisible as
+             texture, entirely visible as quality — a flat #121926 rectangle
+             reads as an absence, the same rectangle with grain reads as a
+             surface.
+
+   Everything here layers onto rules defined above rather than replacing them,
+   which is why it is at the bottom of the file.
+   ======================================================================== */
+
+/* --- raised surfaces: every card the player reads or presses -------------- */
+.action,
+.tech,
+.project,
+.person,
+.policy-option,
+.leader,
+.choice,
+.stat,
+.mini-btn,
+.corner-btn,
+.research-status,
+.settings-toggle {
+  box-shadow: var(--e-1), var(--bevel);
+}
+
+/* --- the panels, which are big enough to need texture --------------------
+   `.side-panel` and `.overlay` are already `position: absolute` and anchored
+   to their edges. Do NOT add `position: relative` here to establish a
+   containing block for the grain below: it overrides that `absolute`, drops
+   the panel out of its anchoring and lands it at the top-left of the screen.
+   They are positioned already, which is all `::before { inset: 0 }` needs.
+   Only the event card, which is a flex child, has to opt in. */
+.veil--event .event-card { position: relative; }
+
+.side-panel::before,
+.overlay::before,
+.veil--event .event-card::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background-image: var(--grain);
+  opacity: 0.03;
+}
+
+/* The panels' real content sits above their grain. */
+.side-panel > *,
+.overlay > *,
+.veil--event .event-card > * { position: relative; z-index: 1; }
+
+/* --- active and selected states, which now emit light -------------------- */
+.overlay__tab[aria-pressed='true'] {
+  /* Keeps the 2px accent cap from the rule above and adds the bloom under it,
+     so the live tab reads as lit rather than merely as a different grey. */
+  box-shadow: inset 0 2px 0 var(--c-accent), var(--glow-accent), var(--bevel);
+}
+
+.speed__btn[aria-pressed='true'] {
+  box-shadow: var(--glow-accent), inset 0 1px 0 rgba(255, 255, 255, 0.25);
+}
+
+.policy-option[aria-pressed='true'],
+.setup-option[aria-pressed='true'] {
+  box-shadow: var(--e-1), var(--bevel), var(--glow-accent);
+}
+
+/* Research under way is the one card in the tech tree that is ALIVE, and it
+   should be findable in a column of twenty without reading any of them. */
+.tech[data-status='researching'] {
+  box-shadow: var(--e-1), var(--bevel),
+              0 0 0 1px rgba(183, 157, 255, 0.35), 0 0 12px rgba(183, 157, 255, 0.22);
+}
+
+/* A province in open revolt is the most consequential thing on the screen.
+   On the map it carries a hatch as well as a colour, so it reads for the
+   roughly one man in twelve who cannot separate those two reds. The list gets
+   the same discipline: a bloom (colour) AND a bar down the leading edge AND
+   the word itself — never colour on its own. */
+.region-row[data-revolt='true'] {
+  box-shadow: var(--glow-danger);
+  border-left: 3px solid var(--c-danger);
+  padding-left: calc(var(--s-2) - 2px);
+}
+
+/* The revolt tag lives in the trend arrow's slot (see src/ui/overlay.js): a
+   ~195px cell will not hold a name, an arrow, two numbers and a badge, and a
+   province in open revolt has no trend worth reading. */
+.region-row__trend[data-mood='revolt'] {
+  color: var(--c-danger);
+  font-family: var(--font-display);
+  font-size: var(--f-xs);
+  font-weight: 700;
+  /* No tracking here, unlike every other micro-label in the game: this one
+     is competing with the province's name for a 195px row, and the letter
+     spacing was worth about a character and a half of it. */
+  letter-spacing: 0;
+  white-space: nowrap;
+}
+
+/* --- the Mandate gauge: the one instrument in the game ------------------- */
+.gauge {
+  box-shadow: var(--e-2), var(--bevel-strong);
+}
+
+/* Low mandate should be visibly urgent from the corner of the eye, without
+   animating — a pulsing meter in a 55-minute game is a 55-minute distraction,
+   and DESIGN.md's reduced-motion rule would have to kill it anyway. */
+.gauge--low { box-shadow: var(--e-2), var(--bevel-strong), var(--glow-danger); }
+
+/* --- the leader cards, which are the game's shop window ------------------ */
+.leader {
+  /* The accent already colours the top edge. Extending it as a wash into the
+     top of the card is what makes six cards read as six characters rather
+     than six paragraphs with a coloured line above them. */
+  background-image:
+    linear-gradient(180deg,
+      color-mix(in srgb, var(--leader-accent, transparent) 10%, transparent) 0%,
+      transparent 60%);
+}
+
+/* --- inputs and rails ---------------------------------------------------- */
+.bar,
+.settings-slider::-webkit-slider-runnable-track {
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.5);
+}
+
+/* A track is a groove, so it is lit from BELOW — the inverse of every raised
+   surface above. Getting this backwards is what makes hand-styled sliders
+   look wrong without it being obvious why. */
+.settings-slider::-webkit-slider-thumb,
+.settings-slider::-moz-range-thumb {
+  box-shadow: var(--e-1), inset 0 1px 0 rgba(255, 255, 255, 0.4);
+}
+
+/* When the region panel is open the top-right cluster loses ~330px of room,
+   and the clock is the chip that cannot shrink: it holds a date, a term
+   counter and three speed buttons. The term counter is the one piece that is
+   recoverable elsewhere — the date beside it already carries the year — so it
+   is what goes, rather than letting the whole chip wrap or clip. */
+#app.panel-open .clock__term { display: none; }
+
+/* Same reasoning, for a screen that is simply short: at 667x375 with a panel
+   open the clock had gone to three lines and was clipping the date. */
+@media (max-height: 380px) {
+  .clock__term { display: none; }
+}

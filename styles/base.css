@@ -146,6 +146,42 @@
      to make a dark panel read as a physical surface instead of a hole. */
   --e-lip: inset 0 1px 0 rgba(255,255,255,.06);
 
+  /* --- THE BEVEL ---
+     The single biggest difference between a dark UI that looks premium and
+     one that looks like flat rectangles. A real surface catches light on its
+     top edge and loses it on the bottom, so a panel gets BOTH: a highlight
+     inside the top and a shadow inside the bottom. One pixel of each, which
+     is all it takes — anything heavier reads as a 2009 gradient button.
+
+     `--bevel` is the standard weight for panels and cards. `--bevel-strong`
+     is for the few surfaces that are meant to read as raised hardware: the
+     HUD's glass, the speed buttons, the gauge. */
+  --bevel:        inset 0 1px 0 rgba(255,255,255,.07),
+                  inset 0 -1px 0 rgba(0,0,0,.4);
+  --bevel-strong: inset 0 1px 0 rgba(255,255,255,.11),
+                  inset 0 -1px 0 rgba(0,0,0,.5),
+                  inset 0 0 0 1px rgba(255,255,255,.03);
+
+  /* --- GLOW ---
+     What an active or selected control gets INSTEAD of merely a different
+     background. A flat colour swap reads as a state; light coming off the
+     element reads as the thing being live. Each is a tight ring plus a soft
+     bloom in the same hue, so it works on any surface underneath. */
+  --glow-accent: 0 0 0 1px rgba(95,176,255,.35), 0 0 10px rgba(95,176,255,.22);
+  --glow-danger: 0 0 0 1px rgba(255,95,71,.35),  0 0 12px rgba(255,95,71,.25);
+  --glow-good:   0 0 0 1px rgba(79,211,154,.3),  0 0 10px rgba(79,211,154,.2);
+
+  /* --- GRAIN ---
+     A very fine monochrome noise, inlined as an SVG turbulence filter. Large
+     flat dark fills are the thing that makes a dark interface look cheap —
+     real screens of this kind always carry some texture, and without it the
+     eye reads a big #121926 rectangle as an absence rather than a surface.
+     At 3% it is invisible as texture and entirely visible as quality.
+
+     Inlined rather than shipped as a PNG for the same reason the fonts are
+     self-hosted: it has to work from `file://` inside a packaged app. */
+  --grain: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='120' height='120' filter='url(%23n)' opacity='.5'/%3E%3C/svg%3E");
+
   /* --- spacing scale: use these, never raw pixels --- */
   --s-1: 4px;
   --s-2: 8px;
@@ -407,16 +443,39 @@ input:focus-visible,
    one-pixel lip of light along its top edge. Drop any of the three and it
    flattens straight back out. */
 .glass {
+  position: relative;
   background:
     linear-gradient(180deg, rgba(30, 41, 61, 0.72) 0%, rgba(10, 15, 24, 0.78) 100%);
   border: 1px solid var(--c-line);
   border-radius: var(--r-md);
-  box-shadow: var(--e-2), var(--e-lip);
+  /* Lifted, lit along the top edge and shadowed along the bottom — see
+     `--bevel-strong` in the tokens. The HUD is the closest thing this game
+     has to hardware and it should read that way. */
+  box-shadow: var(--e-2), var(--bevel-strong);
   /* Progressive enhancement: a browser without backdrop-filter just gets the
      gradient above, which is already readable. */
   backdrop-filter: blur(12px) saturate(1.25);
   -webkit-backdrop-filter: blur(12px) saturate(1.25);
 }
+
+/* Grain, on the one element that carries it for the whole HUD. `inherit` on
+   the radius so it can never square off a rounded card, and `pointer-events:
+   none` so a texture can never eat a tap. */
+.glass::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background-image: var(--grain);
+  opacity: 0.035;
+  pointer-events: none;
+  /* Above the card's own background, below everything the card contains. */
+  z-index: 0;
+}
+
+/* The card's real content sits above the grain. Without this, a stacking
+   context quirk lets the ::before cover text on some engines. */
+.glass > * { position: relative; z-index: 1; }
 
 /* ---------------------------------------------------------------------------
  * PORTRAIT GATE
