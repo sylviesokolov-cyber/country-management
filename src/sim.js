@@ -125,6 +125,19 @@
   };
 
   /** Which colour band a region falls into (drives the map fill). */
+  /**
+   * The ceiling on a region's development.
+   *
+   * 100 everywhere until the Land Reclamation Authority is built, and this is
+   * the one modifier in the game that moves a hard limit rather than a rate.
+   * It exists because "every region reaches 100 and the game runs out of
+   * things to buy" was the flat late game in one sentence.
+   */
+  Sim.developmentCap = function (state, region) {
+    return Mandate.BALANCE.region.max +
+      Mods.add(Mods.forRegion(state, region.id), 'development.cap');
+  };
+
   Sim.stabilityBand = function (region) {
     var bands = Mandate.BALANCE.stabilityBands;
     for (var i = 0; i < bands.length; i++) {
@@ -614,7 +627,7 @@
     /* The payroll and any standing policy with a daily price are part of the
      * same bill as bricks and troops — one bill, one austerity rule. */
     var salary = Sim.salaryPerDay(state);
-    upkeep += salary + policyUpkeep(state, 'treasury');
+    upkeep += salary + policyUpkeep(state, 'treasury') + Sim.projectUpkeep(state);
 
     var gross = nationalOutput * B.region.treasuryPerOutputPerDay *
       Mods.mult(Mods.of(state), 'treasury.mult');
@@ -703,7 +716,8 @@
     }
 
     /* --- 1b. The payroll and any standing policy bill ------------------- */
-    upkeep += Sim.salaryPerDay(state) + policyUpkeep(state, 'treasury');
+    upkeep += Sim.salaryPerDay(state) + policyUpkeep(state, 'treasury') +
+      Sim.projectUpkeep(state);
 
     /* --- 2. Treasury in, upkeep out ------------------------------------- */
     var gross = nationalOutput * R.treasuryPerOutputPerDay *
@@ -730,6 +744,9 @@
      * whether or not the Treasury balanced today. A bankrupt government still
      * finishes the road survey it started. */
     advanceResearch(state);
+    /* After the bill above, because how much of a day's work gets done is
+     * decided by how much of the day's bill was paid. */
+    advanceProjects(state, shortfallFraction);
     refreshPool(state);
 
     /* --- 3d. Expire temporary event effects ----------------------------- */
@@ -753,7 +770,8 @@
     for (i = 0; i < state.regions.length; i++) {
       var region = state.regions[i];
       region.stability = clamp(region.stability + stabilityDeltas[i], R.min, R.max);
-      region.development = clamp(region.development + developmentDeltas[i], R.min, R.max);
+      region.development = clamp(region.development + developmentDeltas[i],
+        R.min, Sim.developmentCap(state, region));
     }
 
     /* --- 4b. The unrest clock ------------------------------------------- */
@@ -923,9 +941,40 @@
     var m = Mods.forRegion(state, regionId);
     var mult = Mods.mult(m, 'cost.' + actionId + '.mult') *
       (1 + Sim.actionFatigue(state, actionId, regionId));
+    /* THE MARGINAL COST OF DEVELOPMENT (Phase 5).
+     *
+     * Building where there is already a great deal built costs more: the easy
+     * ground goes first, and what is left is marsh, mountain and compulsory
+     * purchase. `costPerDevelopment` is added to the Treasury price in
+     * proportion to what the region already has.
+     *
+     * It is here because of the flat late game, and it is the half of that
+     * fix which patch fatigue is to Public Works. A raised development
+     * ceiling alone just moved the flat part later: the harness showed a won
+     * run capping out again at the new limit and finishing 31,000 in credit.
+     * A price that climbs with what you have built means the last thirty
+     * points of a province cost what the first hundred did — so the surplus
+     * has somewhere to go, and there is a real choice between finishing a
+     * rich province and starting a poor one. Invest still carries no
+     * FATIGUE: building never gets harder because you did it recently, only
+     * because there is less easy ground left.
+     *
+     * `costFreeBelow` is why it is not simply a slope from zero. Charged on
+     * every point, the surcharge broke the entire game rather than its last
+     * five hundred days: the harness put the builder at 7 wins from 36 and
+     * 554 development, against 22 and 1,341 — a country that could no longer
+     * afford to develop at all. The first fifty points of a province are the
+     * easy ground, and they stay at list price. */
+    var perDevelopment = action.costPerDevelopment || 0;
+    var region = perDevelopment ? Mandate.State.regionById(state, regionId) : null;
+    var surcharge = region
+      ? perDevelopment * Math.max(0, region.development - (action.costFreeBelow || 0))
+      : 0;
+
     var out = {};
     Object.keys(action.cost || {}).forEach(function (key) {
-      var value = Math.round(action.cost[key] * mult);
+      var base = action.cost[key] + (key === 'treasury' ? surcharge : 0);
+      var value = Math.round(base * mult);
       out[key] = value < 1 ? 1 : value;
     });
     return out;
@@ -1015,13 +1064,14 @@
    * its own, so Withdraw stays available even when its stability penalty is
    * already clamped out at 0.
    */
-  function effectWouldApply(region, effect) {
+  function effectWouldApply(state, region, effect) {
     var R = Mandate.BALANCE.region;
 
     if (typeof effect.garrisoned === 'boolean' &&
         !!region.garrisoned !== effect.garrisoned) return true;
     if (effect.development &&
-        clamp(region.development + effect.development, R.min, R.max) !== region.development) {
+        clamp(region.development + effect.development, R.min,
+          Sim.developmentCap(state, region)) !== region.development) {
       return true;
     }
     if (effect.stability &&
@@ -1081,7 +1131,7 @@
     }
 
     var effect = Sim.actionEffect(state, actionId, regionId);
-    if (!effectWouldApply(region, effect)) {
+    if (!effectWouldApply(state, region, effect)) {
       return { ok: false, reason: noEffectReason(effect) };
     }
 
@@ -1127,7 +1177,8 @@
     var effect = Sim.actionEffect(state, actionId, regionId);
     if (effect.development) {
       region.development = clamp(
-        region.development + effect.development, B.region.min, B.region.max);
+        region.development + effect.development,
+        B.region.min, Sim.developmentCap(state, region));
     }
     if (effect.stability) {
       region.stability = clamp(
@@ -1345,6 +1396,165 @@
     state.tech.progress = 0;
     state.stats.techCompleted += 1;
     Sim.log(state, 'tech', 'Research complete: ' + node.name + '.');
+    touch(state);
+  }
+
+  /* ------------------------------------------------------------------------
+   * NATIONAL PROJECTS — the late game (Phase 5).
+   *
+   * See the header of data/projects.js for what these are for. The mechanics
+   * in one paragraph: one project at a time, started for a large sum of
+   * Political Capital and Treasury, built over two in-game years during which
+   * it bills the Treasury EVERY DAY through the same upkeep bill as roads and
+   * soldiers — so an over-ambitious government goes bankrupt through exactly
+   * the austerity rule everything else does — and paying off, on completion,
+   * as an ordinary `mods` payload merged by src/modifiers.js.
+   * ---------------------------------------------------------------------- */
+
+  /** 'done' | 'building' | 'available' | 'locked' | 'blocked' */
+  Sim.projectStatus = function (state, projectId) {
+    if (state.projects.completed.indexOf(projectId) !== -1) return 'done';
+    var active = state.projects.active;
+    if (active && active.id === projectId) return 'building';
+    if (!Sim.projectRequirementsMet(state, projectId)) return 'locked';
+    /* Something else is already being built. Deliberately its own status
+     * rather than just "not available": the reason a project cannot be
+     * started is the single most useful thing the screen can say. */
+    if (active) return 'blocked';
+    return 'available';
+  };
+
+  Sim.projectRequirementsMet = function (state, projectId) {
+    var project = Mandate.PROJECTS.byId(projectId);
+    if (!project) return false;
+    var need = project.requires || {};
+    if (need.day && state.day < need.day) return false;
+    if (need.nationalDevelopment &&
+        state.derived.nationalDevelopment < need.nationalDevelopment) return false;
+    if (need.techCompleted && state.tech.completed.length < need.techCompleted) return false;
+    if (need.project && state.projects.completed.indexOf(need.project) === -1) return false;
+    return true;
+  };
+
+  /** What is still missing, in the player's words. Drives the locked card. */
+  Sim.projectMissing = function (state, projectId) {
+    var project = Mandate.PROJECTS.byId(projectId);
+    var need = (project && project.requires) || {};
+    var missing = [];
+    if (need.day && state.day < need.day) {
+      missing.push('day ' + Mandate.Util.formatInt(need.day));
+    }
+    if (need.nationalDevelopment &&
+        state.derived.nationalDevelopment < need.nationalDevelopment) {
+      missing.push(Mandate.Util.formatInt(need.nationalDevelopment) + ' development');
+    }
+    if (need.techCompleted && state.tech.completed.length < need.techCompleted) {
+      missing.push(need.techCompleted + ' research nodes');
+    }
+    if (need.project && state.projects.completed.indexOf(need.project) === -1) {
+      var other = Mandate.PROJECTS.byId(need.project);
+      missing.push(other ? other.name : need.project);
+    }
+    return missing;
+  };
+
+  Sim.canStartProject = function (state, projectId) {
+    var project = Mandate.PROJECTS.byId(projectId);
+    if (!project) return { ok: false, reason: 'Unknown project' };
+    if (state.gameOver) return { ok: false, reason: 'Run over' };
+
+    var status = Sim.projectStatus(state, projectId);
+    if (status === 'done') return { ok: false, reason: 'Built' };
+    if (status === 'building') return { ok: false, reason: 'Under way' };
+    if (status === 'blocked') return { ok: false, reason: 'One at a time' };
+    if (status === 'locked') {
+      return { ok: false, reason: 'Needs ' + Sim.projectMissing(state, projectId).join(', ') };
+    }
+
+    for (var key in project.cost) {
+      if (!Object.prototype.hasOwnProperty.call(project.cost, key)) continue;
+      if (state.resources[key] < project.cost[key]) {
+        return { ok: false, reason: 'Not enough ' + Sim.resourceLabel(key) };
+      }
+    }
+    return { ok: true };
+  };
+
+  Sim.startProject = function (state, projectId) {
+    if (!Sim.canStartProject(state, projectId).ok) return false;
+    var project = Mandate.PROJECTS.byId(projectId);
+
+    for (var key in project.cost) {
+      if (!Object.prototype.hasOwnProperty.call(project.cost, key)) continue;
+      state.resources[key] -= project.cost[key];
+    }
+    state.projects.active = { id: projectId, progress: 0 };
+    Sim.log(state, 'project', 'Work begins on ' + project.name + '.');
+    return true;
+  };
+
+  /**
+   * Abandon what is being built. Nothing is refunded and the progress is
+   * gone: the money was spent on the half-built thing, which is precisely
+   * what makes starting one a commitment rather than a purchase.
+   */
+  Sim.abandonProject = function (state) {
+    var active = state.projects.active;
+    if (!active) return false;
+    var project = Mandate.PROJECTS.byId(active.id);
+    state.projects.active = null;
+    Sim.log(state, 'project',
+      'Work on ' + (project ? project.name : 'the project') + ' was abandoned.');
+    return true;
+  };
+
+  /**
+   * The daily Treasury bill for projects: what is being built, plus what
+   * every finished one costs to keep standing forever.
+   *
+   * Folded into the SAME upkeep bill as development, garrisons and salaries,
+   * so a government that cannot pay for its monuments goes into austerity
+   * exactly like one that cannot pay its soldiers. That is the point: the
+   * Treasury surplus this whole system exists to absorb has to be absorbed by
+   * something that can hurt, or it is just a longer shopping list.
+   */
+  Sim.projectUpkeep = function (state) {
+    var total = 0;
+    var active = state.projects.active;
+    if (active) {
+      var building = Mandate.PROJECTS.byId(active.id);
+      if (building && building.perDay) total += building.perDay.treasury || 0;
+    }
+    for (var i = 0; i < state.projects.completed.length; i++) {
+      var done = Mandate.PROJECTS.byId(state.projects.completed[i]);
+      if (done && done.upkeep) total += done.upkeep.treasury || 0;
+    }
+    return total;
+  };
+
+  /**
+   * One day of construction.
+   *
+   * Progress advances by the share of today's bill that was actually PAID.
+   * A bankrupt government does not finish its grand projects on schedule —
+   * and because the project's own daily cost is part of that bill, a project
+   * started on a thin surplus slows itself down. It is the same austerity
+   * rule the rest of the game runs on, applied to the one system that could
+   * otherwise have been a way to spend money without consequences.
+   */
+  function advanceProjects(state, shortfallFraction) {
+    var active = state.projects.active;
+    if (!active) return;
+    var project = Mandate.PROJECTS.byId(active.id);
+    if (!project) { state.projects.active = null; return; }
+
+    active.progress += 1 - shortfallFraction;
+    if (active.progress < project.days) return;
+
+    state.projects.active = null;
+    state.projects.completed.push(project.id);
+    state.stats.projectsCompleted = (state.stats.projectsCompleted || 0) + 1;
+    Sim.log(state, 'project', project.name + ' is complete. ' + project.changes);
     touch(state);
   }
 

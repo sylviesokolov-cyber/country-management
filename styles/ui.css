@@ -779,10 +779,24 @@
   gap: var(--s-1);
   padding: var(--s-2) var(--s-2) 0;
   flex: 0 0 auto;
+  /* Seven tabs do not fit across 844px at a readable size, and shrinking them
+     until they do gives you seven unreadable tabs. A scrolling strip is what
+     every phone app does instead; the close button is pinned outside it so it
+     never scrolls away. */
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-x: contain;
 }
 
+.overlay__tabs::-webkit-scrollbar { display: none; }
+
 .overlay__tab {
-  flex: 1 1 0;
+  /* Sized by content, never stretched: a tab strip that scrolls must not also
+     squeeze, or the last tab ends up as three letters and an ellipsis. */
+  flex: 0 0 auto;
+  white-space: nowrap;
   min-height: var(--tap);
   padding: var(--s-2) var(--s-1);
   display: flex;
@@ -2432,3 +2446,315 @@
   font-weight: 600;
   transition: background-color 140ms ease-out, color 140ms ease-out;
 }
+
+/* ===========================================================================
+   SETTINGS TAB (Phase 5)
+   The only tab in the game with real form controls in it. A range input is
+   styled by hand in both engines because the default is a 4px hairline with a
+   12px thumb — unusable with a thumb on a phone, and the wrong shape for a
+   mixer sitting inside a dark panel.
+   ======================================================================== */
+.settings-group {
+  margin-bottom: var(--s-5);
+  padding-bottom: var(--s-4);
+  border-bottom: 1px solid var(--c-line);
+}
+
+.settings-group:last-child { border-bottom: 0; }
+
+.settings-head {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  margin: 0 0 var(--s-3);
+  font-family: var(--font-display);
+  font-size: var(--f-sm);
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--c-text-dim);
+}
+
+.settings-head__icon { width: 1.1em; height: 1.1em; opacity: 0.8; }
+
+.settings-row {
+  display: grid;
+  /* label | slider | value. The value column is fixed so the slider does not
+     jump sideways as the number goes from 5% to 100%. */
+  grid-template-columns: minmax(84px, 26%) 1fr 44px;
+  align-items: center;
+  gap: var(--s-3);
+  min-height: 44px;
+}
+
+.settings-row__label {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  font-family: var(--font-display);
+  font-size: var(--f-sm);
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  color: var(--c-text);
+}
+
+.settings-row__icon { width: 1.1em; height: 1.1em; color: var(--c-text-dim); }
+
+.settings-row__value {
+  font-family: var(--font-num);
+  font-variant-numeric: tabular-nums;
+  font-size: var(--f-xs);
+  text-align: right;
+  color: var(--c-text-dim);
+}
+
+.settings-slider {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 28px;              /* the TAP target; the track is drawn inside it */
+  margin: 0;
+  background: transparent;
+  cursor: pointer;
+  touch-action: pan-y;       /* a horizontal drag is the slider, not a scroll */
+}
+
+.settings-slider::-webkit-slider-runnable-track {
+  height: 6px;
+  border-radius: 999px;
+  background: var(--c-surface-2);
+  border: 1px solid var(--c-line);
+}
+
+.settings-slider::-moz-range-track {
+  height: 6px;
+  border-radius: 999px;
+  background: var(--c-surface-2);
+  border: 1px solid var(--c-line);
+}
+
+.settings-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 22px;
+  height: 22px;
+  margin-top: -9px;          /* centre the thumb on a 6px track */
+  border-radius: 50%;
+  background: var(--c-accent);
+  border: 2px solid var(--c-bg);
+  box-shadow: var(--e-1);
+}
+
+.settings-slider::-moz-range-thumb {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--c-accent);
+  border: 2px solid var(--c-bg);
+  box-shadow: var(--e-1);
+}
+
+.settings-slider:focus-visible { outline: 2px solid var(--c-accent); outline-offset: 4px; }
+
+/* --- the vibration switch ----------------------------------------------- */
+.settings-toggle {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  width: 100%;
+  min-height: 52px;
+  margin-top: var(--s-2);
+  padding: var(--s-2) var(--s-3);
+  text-align: left;
+  color: var(--c-text);
+  background: var(--c-surface-3);
+  border: 1px solid var(--c-line);
+  border-radius: var(--r-md);
+  cursor: pointer;
+}
+
+.settings-toggle__text { flex: 1; display: block; }
+
+.settings-toggle__blurb {
+  display: block;
+  margin-top: 2px;
+  font-size: var(--f-xs);
+  color: var(--c-text-dim);
+}
+
+/* The switch itself: a track with a pip that slides. `aria-pressed` is the
+   single source of truth for both the state and the styling, so the two can
+   never disagree. */
+.settings-toggle__pip {
+  position: relative;
+  flex: 0 0 auto;
+  width: 44px;
+  height: 26px;
+  border-radius: 999px;
+  background: var(--c-surface-2);
+  border: 1px solid var(--c-line-strong);
+  transition: background-color 160ms ease-out;
+}
+
+.settings-toggle__pip::after {
+  content: "";
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--c-text-faint);
+  transition: transform 160ms ease-out, background-color 160ms ease-out;
+}
+
+.settings-toggle[aria-pressed="true"] .settings-toggle__pip {
+  background: color-mix(in srgb, var(--c-accent) 35%, transparent);
+  border-color: var(--c-accent);
+}
+
+.settings-toggle[aria-pressed="true"] .settings-toggle__pip::after {
+  transform: translateX(18px);
+  background: var(--c-accent);
+}
+
+.settings-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-2);
+  margin-top: var(--s-3);
+}
+
+/* These two are not "a control at the end of a row" like every other
+   .mini-btn in the game, so they lose the auto left margin that pushes those
+   to the right. */
+.settings-actions .mini-btn { margin-left: 0; min-height: 44px; }
+
+.settings-facts {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: var(--s-1) var(--s-4);
+  margin: 0;
+  font-size: var(--f-xs);
+}
+
+.settings-facts dt { color: var(--c-text-dim); }
+
+.settings-facts dd {
+  margin: 0;
+  font-family: var(--font-num);
+  font-variant-numeric: tabular-nums;
+  color: var(--c-text);
+}
+
+/* ===========================================================================
+   NATIONAL PROJECTS (Phase 5)
+   Deliberately a card rather than a row: a project is a two-year commitment
+   with three costs and a rule change attached, and the tech tree's one-line
+   row cannot carry that. There are only six of them, ever, so they can afford
+   the space the tech tree's twenty nodes cannot.
+   ======================================================================== */
+.project-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: var(--s-3);
+  margin-top: var(--s-4);
+}
+
+.project {
+  display: block;
+  width: 100%;
+  padding: var(--s-3);
+  text-align: left;
+  color: var(--c-text);
+  background: var(--c-surface);
+  border: 1px solid var(--c-line);
+  border-left: 3px solid var(--c-line-strong);
+  border-radius: var(--r-md);
+  box-shadow: var(--e-1), var(--e-lip);
+  cursor: pointer;
+}
+
+.project:active { background: var(--c-surface-2); }
+.project[disabled] { cursor: default; }
+
+/* Status is carried by the left edge and the opacity, never by colour alone:
+   a built project also has a tick, and a locked one says what it is waiting
+   for in words. */
+.project[data-status="available"] { border-left-color: var(--c-accent); }
+.project[data-status="building"]  { border-left-color: var(--c-treasury); }
+.project[data-status="done"]      { border-left-color: var(--c-band-secure); opacity: 0.75; }
+.project[data-status="locked"]    { opacity: 0.55; }
+.project[data-status="blocked"]   { opacity: 0.6; }
+
+.project__head {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  margin-bottom: var(--s-2);
+}
+
+.project__icon { width: 1.2em; height: 1.2em; color: var(--c-text-dim); }
+
+.project__name {
+  flex: 1;
+  font-family: var(--font-display);
+  font-size: var(--f-md);
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.project__years,
+.project__tick {
+  font-family: var(--font-num);
+  font-size: var(--f-xs);
+  color: var(--c-text-faint);
+}
+
+.project__tick { color: var(--c-band-secure); display: flex; }
+
+.project__blurb {
+  margin: 0 0 var(--s-2);
+  font-size: var(--f-xs);
+  line-height: 1.35;
+  color: var(--c-text-dim);
+}
+
+/* What it changes is the reason to build it, so it is styled as the payoff
+   rather than as more body copy. */
+.project__changes {
+  margin: 0;
+  padding: var(--s-2);
+  font-size: var(--f-xs);
+  line-height: 1.35;
+  color: var(--c-text);
+  background: var(--c-surface-3);
+  border-radius: var(--r-sm);
+}
+
+.project__costs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-1);
+  margin-top: var(--s-2);
+}
+
+.project__cost {
+  padding: 2px var(--s-2);
+  font-family: var(--font-num);
+  font-variant-numeric: tabular-nums;
+  font-size: var(--f-xs);
+  color: var(--c-text-dim);
+  background: var(--c-surface-2);
+  border: 1px solid var(--c-line);
+  border-radius: 999px;
+}
+
+.project__reason {
+  display: block;
+  margin-top: var(--s-2);
+  font-size: var(--f-xs);
+  color: var(--c-band-strained);
+}
+
+.bar__fill--project { background: var(--c-treasury); }

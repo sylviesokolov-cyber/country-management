@@ -172,25 +172,52 @@ Tick items off as they land, and note anything deferred in `DEVLOG.md`.
       `State.isUsable()` + a v4 → v5 migration step, both tested
 - [ ] Verify a run lands in the 45–60 minute window **with a human playing it**
       (the harness says 3,650 days × 900ms = 55 minutes, but a human pauses)
-- [ ] **Fix the flat late game.** In a won run, development caps out around day
-      3,000 and the Treasury then climbs past 20,000 with nothing to spend it
-      on, while Political Capital pins at its cap (carried over from Phases 3
-      and 4). The last 500 days of a good term have no decisions in them —
-      this is the first thing to do next
-- [ ] Manual save / restart controls (a Settings tab). The corrupt-save half of
-      this item is done; the player-facing half is not
+- [ ] **Playtest the projects.** The harness completes one in about a third of
+      runs, but its strategies never plan for one — so most of the measured
+      improvement above comes from the Invest surcharge rather than from the
+      projects themselves. A human playing *for* a project should see far more
+      of them, and nothing has confirmed that yet
+- [ ] **Listen to the score on a phone speaker.** It is verified to schedule
+      and to change its arrangement with the country (by counting voices in a
+      headless browser), which is not the same as it sounding good on a device
+      whose speaker starts at 400Hz
+- [x] **Fix the flat late game** — two changes, because one was not enough.
+      **National projects** (`data/projects.js`): six late-game undertakings,
+      one at a time, each costing Political Capital up front and a daily
+      Treasury bill for two in-game years, and each paying off as an ordinary
+      `mods` payload — including the only modifier in the game that moves a
+      hard limit, the Land Reclamation Authority's +30 development ceiling.
+      And **`invest.costPerDevelopment`**: building costs more where a great
+      deal is already built. The second exists because the first alone only
+      moved the flat part later — see BALANCE.md for the run that ended 31,000
+      in credit at the new ceiling. End-of-term Treasury is down from
+      6,900–16,100 to 300–2,600
+- [x] Manual save / restart controls — a **Settings tab**: save now (which
+      reports honestly when localStorage is blocked), and resign, which ends
+      the term through `Sim.endRun` like any other ending rather than quietly
+      deleting the world. It asks twice, in place, rather than in a `confirm()`
+      the browser draws over a fullscreen game
 - [x] **The art pass.** The game was built systems-first and looked it. Now:
       a 46-glyph icon sprite (`src/ui/icons.js`) replacing every emoji, a real
       typeface (Barlow, self-hosted), a map with gradients, a sea, a drop
       shadow and terrain glyphs, a regraded band ramp, elevation tokens, and a
-      geometric crest per leader. See `DESIGN.md` §2.9 and `assets/LICENSES.md`
+      geometric crest per leader. See `DESIGN.md` §2.11 and `assets/LICENSES.md`
 - [ ] Finish the accessibility pass. Done so far: reduced motion is respected
       globally, revolt is carried by a hatch rather than by colour alone, the
       band ramp now separates in greyscale, the gauge is a real button with
       `aria-expanded`, toasts and the ticker are live regions, and a region
       announces its revolt to a screen reader.
       Still to do: a real contrast audit, and keyboard focus order
-- [ ] Sound/haptics (optional — `navigator.vibrate` on key actions)
+- [x] **Sound, music and haptics** (`src/audio.js`) — and not optional, which
+      is where the last session left it. An **adaptive score**, synthesised in
+      the Web Audio graph rather than shipped as a file: one `tension` value
+      derived from the state of the country moves the tempo, the mode
+      (D ionian → aeolian → phrygian), the filter and which layers play, so
+      the melody thins out as provinces slide and the drums arrive with the
+      first revolt. Twenty-odd one-shot cues, each recognisable with the phone
+      face down. `navigator.vibrate` on the decisions that matter. A mixer in
+      the Settings tab (overall / music / effects / vibration), persisted
+      outside the save
 - [ ] Test on a small phone (667×375 landscape) and a large one; check
       notch/gesture-bar insets on a real device, held both ways round
 - [ ] Consider map pan/zoom now that the map is full-bleed

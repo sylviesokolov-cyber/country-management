@@ -70,16 +70,37 @@
     el.addEventListener('pointerdown', function (event) {
       /* Ignore right-click / middle-click when played in a desktop browser. */
       if (event.pointerType === 'mouse' && event.button !== 0) return;
+      cue(el);
       handler(event);
     });
 
     el.addEventListener('keydown', function (event) {
       if (event.key === 'Enter' || event.key === ' ') {
         event.preventDefault();
+        cue(el);
         handler(event);
       }
     });
   };
+
+  /**
+   * Every tappable thing makes a sound, from here, once — so no call site has
+   * to remember to. A control opts out or opts up with `data-sfx`:
+   *
+   *   (nothing)        the generic interface tick
+   *   data-sfx="open"  a named cue from src/audio.js instead
+   *   data-sfx="none"  silence, because the CALLER will decide
+   *
+   * The last one is what the region action buttons use: whether a tap was an
+   * Invest or a refusal is the simulation's answer, not the button's, and a
+   * confirmation tick underneath a "you cannot afford that" buzz would be the
+   * interface disagreeing with itself.
+   */
+  function cue(el) {
+    var name = (el.dataset && el.dataset.sfx) || 'tap';
+    if (name === 'none') return;
+    if (Mandate.Audio) Mandate.Audio.sfx(name);
+  }
 
   /* ------------------------------------------------------------------------
    * node: the smallest possible createElement wrapper.

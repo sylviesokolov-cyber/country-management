@@ -378,7 +378,92 @@ next begins.
 
 ---
 
-### 2.9 The visual language
+### 2.9 National projects — the late game
+
+*Live as of Phase 5 — `data/projects.js`, six of them.*
+
+For three sessions the DEVLOG opened with the same sentence: the late game is
+flat. Every region reaches development 100 around day 3,000, Invest is refused
+everywhere, the Treasury climbs past 20,000 and Political Capital pins at its
+cap. The last 500 days of a *won* run contain no decisions — the idle-game
+spreadsheet this whole design exists to prevent, arriving through the back door
+at the end of a good term.
+
+A project is one national undertaking at a time, measured in years:
+
+- **Political Capital up front** (22–32, two or three tech nodes' worth), so
+  the currency that pins at its cap has somewhere to go.
+- **A daily Treasury bill** for the two in-game years it takes, billed through
+  the *same upkeep bill* as roads and soldiers. A government that overcommits
+  goes into austerity by exactly the rule everything else does, and a project
+  it cannot pay for does not stop — it **slows down**, advancing by the share
+  of the day's bill that was actually paid.
+- **A standing cost afterwards**, for most of them. A state that has undertaken
+  great works is permanently more expensive to run.
+
+The design rule is the tech tree's rule and harder: a project must change how
+the systems interact. Land Reclamation raises the **development ceiling** — the
+only modifier in the game that moves a hard limit rather than a rate. The
+Federal Compact governs the provinces for you and takes 12% of the economy for
+it. The Civic Endowment slows the baseline Mandate drain and bills you 12 a day
+forever for the privilege. A project reaches the simulation as a `mods` payload
+through `src/modifiers.js`, exactly like a tech node, so a seventh is an object
+in a data file.
+
+**Raising the ceiling was not enough on its own**, and this is the part worth
+remembering: with it and nothing else, a won run capped out again at the new
+limit and finished 31,000 in credit. The flat stretch had simply moved later.
+So Invest also carries a **marginal cost**: `costPerDevelopment` adds to its
+price per point the region already holds, above a floor of 60. The easy ground
+goes first; what is left is marsh and compulsory purchase. That is what gives a
+rich country somewhere to put its money, and it makes finishing a good province
+a real choice against starting a poor one. Invest still carries no *fatigue* —
+building never gets harder because you did it recently, only because there is
+less easy ground left.
+
+### 2.10 Sound — a score that follows the country
+
+*Live as of Phase 5 — `src/audio.js`.*
+
+**There are no audio files in this repository, and there will not be.** Every
+alternative was worse here: `<audio src>` and `decodeAudioData` are both
+blocked by CORS from `file://`, which is a hard requirement (§4.7); a music bed
+good enough to loop for 55 minutes is several megabytes against a game that is
+currently under 400KB including six font faces; and a recording cannot follow
+the state of the country.
+
+So the score is **synthesised in the Web Audio graph**, and the reason is the
+third of those, not the first two. One `tension` value — derived from unrest,
+revolts, the Mandate remaining and whether the bill is being paid, then
+smoothed over about twelve seconds — moves the whole arrangement:
+
+- **The tonic never changes; the mode does.** D ionian when the country is
+  calm, aeolian as it strains, phrygian in crisis. A fixed tonic under a
+  changing mode is what makes decline audible as *the same piece going wrong*
+  rather than as a different track fading in. The mode may only change at a
+  phrase boundary.
+- **The melody is the first thing to go.** Bells play only while things are
+  calm, and this is the most effective single thing in the file: the player
+  hears the tune stop before they notice the third province cross the line.
+- The drum enters as the country stops being calm, a low brass cluster only
+  ever appears when provinces are in revolt, and a heartbeat arrives in the
+  last fifth of a government's life.
+- **A paused game loses everything that moves** and keeps the drone. The clock
+  stopping is a state you can hear.
+
+Cues are written to be recognised rather than admired: a confirmation rises, a
+refusal falls, spending money is metallic, troops are percussive, and anything
+to do with a revolt is low and dirty. A player should be able to tell what just
+happened with the phone face down.
+
+**Audio is view, never simulation.** It reads state on the same render pass as
+everything else and it reads the *run log* for one-shot cues — so a new kind of
+event gets a sound by appearing in one table in `src/audio.js`, with no change
+to `src/sim.js`, and a muted game plays identically. The mixer lives in the
+Settings tab and is stored outside the save, because volume is a fact about the
+room rather than about the run.
+
+### 2.11 The visual language
 
 *Live as of Phase 5's art pass.*
 
@@ -488,7 +573,9 @@ does it (Rebel Inc., Plague Inc. and most mobile 4X games).
   shifts green → amber → red at the thresholds in `BALANCE.mandate`.
 - **Bottom-left "Ministry"** and **bottom-right "Regions"** open the
   full-screen management overlay (tabs across the top: Tech, Appointees,
-  Policies, Events, Regions). Four of the five are live; Events is Phase 4's.
+  Policies, Projects, Events, Regions, Settings). The strip scrolls
+  horizontally: seven tabs do not fit across 844px at a readable size, and
+  shrinking them until they do gives seven unreadable tabs.
   `src/ui/overlay.js` is only the shell — it knows about tabs, opening,
   closing and the render cadence, and calls one function per tab. The Phase 3
   screens live in `src/ui/ministry.js`, which is why the shell has stayed the
@@ -656,7 +743,10 @@ Full checklist in `TODO.md`. In short:
    policies.
 4. **Phase 4 (done)** — six leaders, 16 conditional events with timed
    consequences, the run log, a win condition, scoring and per-leader bests.
-5. **Phase 5** — balance tuning, polish, save/load hardening.
+5. **Phase 5** — the balance harness, open revolt, patch fatigue, the art
+   pass, save/load hardening; then national projects and the marginal cost of
+   development for the late game, and an adaptive synthesised score with
+   haptics and a mixer.
 6. **Phase 6** — Capacitor wrap, signed AAB pipeline, Play Store prep.
 
 ## 7. Conventions for future sessions
@@ -674,7 +764,13 @@ Full checklist in `TODO.md`. In short:
 - New UI: build markup once on open, update values on render. Never rebuild
   markup per frame.
 - Bump `State.SCHEMA_VERSION` and add a migration step whenever the state shape
-  changes.
+  changes, and add the new container to `State.isUsable()` in the same commit —
+  the sim writes into these without checking, so a save missing one crashes on
+  the first tick rather than being refused at load.
+- A control makes a sound from `View.onTap` and nowhere else. It opts up or out
+  with `data-sfx="<cue>"` / `data-sfx="none"`; "none" means the *caller* will
+  decide, which is what every button whose outcome the simulation determines
+  uses (a confirmation and a refusal are different sounds for the same tap).
 - A new system that changes the simulation should declare `mods`/`flags` and go
   through `src/modifiers.js`, not add a branch to `src/sim.js`. If it needs a
   key the sim doesn't read yet, add the key to `Mods.READ_KEYS` in the same

@@ -151,7 +151,7 @@
              aria-label="What is spending your mandate">
       <div class="why__head">
         <div class="panel__title">Where the term is going</div>
-        <button class="panel__close" id="mandate-why-close" aria-label="Close">&times;</button>
+        <button class="panel__close" id="mandate-why-close" aria-label="Close" data-sfx="close">&times;</button>
       </div>
       <div class="why__list" id="mandate-why-list"></div>
       <p class="why__total" id="mandate-why-total"></p>
@@ -174,13 +174,13 @@
     <div class="toasts" id="toasts" aria-live="polite"></div>
 
     <!-- bottom-left: opens the full-screen management overlay -->
-    <button class="hud-bottomleft corner-btn" id="btn-ministry">
+    <button class="hud-bottomleft corner-btn" id="btn-ministry" data-sfx="open">
       <span class="corner-btn__icon" data-icon="ministry" aria-hidden="true"></span>
       <span>Ministry</span>
     </button>
 
     <!-- bottom-right: opens the region list -->
-    <button class="hud-bottomright corner-btn" id="btn-regions">
+    <button class="hud-bottomright corner-btn" id="btn-regions" data-sfx="open">
       <span>Regions</span>
       <span class="corner-btn__icon" data-icon="regions" aria-hidden="true"></span>
     </button>
@@ -193,7 +193,7 @@
         <div class="panel__subtitle" id="region-terrain">&nbsp;</div>
         <div class="panel__title" id="region-name">&nbsp;</div>
       </div>
-      <button class="panel__close" id="region-close" aria-label="Close region panel">&times;</button>
+      <button class="panel__close" id="region-close" aria-label="Close region panel" data-sfx="close">&times;</button>
     </div>
     <div class="panel__body scrollable" id="region-body"></div>
   </section>
@@ -203,12 +203,14 @@
        for their management screens. -->
   <section class="overlay" id="overlay" aria-hidden="true" aria-label="Management">
     <div class="overlay__tabs" role="group" aria-label="Sections">
-      <button class="overlay__tab" data-tab="tech"       aria-pressed="false"><span class="overlay__tab-icon" data-icon="tech" aria-hidden="true"></span>Tech</button>
-      <button class="overlay__tab" data-tab="appointees" aria-pressed="false"><span class="overlay__tab-icon" data-icon="appointees" aria-hidden="true"></span>Appointees</button>
-      <button class="overlay__tab" data-tab="policies"   aria-pressed="false"><span class="overlay__tab-icon" data-icon="policies" aria-hidden="true"></span>Policies</button>
-      <button class="overlay__tab" data-tab="events"     aria-pressed="false"><span class="overlay__tab-icon" data-icon="events" aria-hidden="true"></span>Events</button>
-      <button class="overlay__tab" data-tab="regions"    aria-pressed="false"><span class="overlay__tab-icon" data-icon="regions" aria-hidden="true"></span>Regions</button>
-      <button class="overlay__close" id="overlay-close" aria-label="Close">&times;</button>
+      <button class="overlay__tab" data-sfx="open" data-tab="tech"       aria-pressed="false"><span class="overlay__tab-icon" data-icon="tech" aria-hidden="true"></span>Tech</button>
+      <button class="overlay__tab" data-sfx="open" data-tab="appointees" aria-pressed="false"><span class="overlay__tab-icon" data-icon="appointees" aria-hidden="true"></span>Appointees</button>
+      <button class="overlay__tab" data-sfx="open" data-tab="policies"   aria-pressed="false"><span class="overlay__tab-icon" data-icon="policies" aria-hidden="true"></span>Policies</button>
+      <button class="overlay__tab" data-sfx="open" data-tab="projects"   aria-pressed="false"><span class="overlay__tab-icon" data-icon="projects" aria-hidden="true"></span>Projects</button>
+      <button class="overlay__tab" data-sfx="open" data-tab="events"     aria-pressed="false"><span class="overlay__tab-icon" data-icon="events" aria-hidden="true"></span>Events</button>
+      <button class="overlay__tab" data-sfx="open" data-tab="regions"    aria-pressed="false"><span class="overlay__tab-icon" data-icon="regions" aria-hidden="true"></span>Regions</button>
+      <button class="overlay__tab" data-sfx="open" data-tab="settings"   aria-pressed="false"><span class="overlay__tab-icon" data-icon="settings" aria-hidden="true"></span>Settings</button>
+      <button class="overlay__close" id="overlay-close" aria-label="Close" data-sfx="close">&times;</button>
     </div>
     <div class="overlay__body scrollable" id="overlay-body"></div>
   </section>
@@ -244,7 +246,7 @@
       <div class="veil-spend" id="veil-spend"></div>
       <dl class="veil__stats" id="veil-stats"></dl>
       <div class="veil__buttons">
-        <button class="veil__restart" id="veil-restart">Choose a new leader</button>
+        <button class="veil__restart" id="veil-restart" data-sfx="open">Choose a new leader</button>
       </div>
     </div>
   </div>
@@ -282,6 +284,8 @@
 <script src="data/traits.js"></script>
 <script src="data/appointees.js"></script>
 <script src="data/policies.js"></script>
+<!-- Phase 5: the national projects — the late game. -->
+<script src="data/projects.js"></script>
 <!-- Phase 4: who you are, and what the country does about it. -->
 <script src="data/leaders.js"></script>
 <script src="data/events.js"></script>
@@ -294,6 +298,9 @@
 <script src="src/sim.js"></script>
 <script src="src/loop.js"></script>
 
+<!-- The score and the sound effects. Pure view, like src/ui/* — it reads
+     state and makes noise, and the simulation has no idea it exists. -->
+<script src="src/audio.js"></script>
 <script src="src/ui/view.js"></script>
 <!-- icons.js must precede every view that draws one. -->
 <script src="src/ui/icons.js"></script>
@@ -301,6 +308,7 @@
 <script src="src/ui/hud.js"></script>
 <script src="src/ui/panel.js"></script>
 <script src="src/ui/ministry.js"></script>
+<script src="src/ui/settings.js"></script>
 <script src="src/ui/alerts.js"></script>
 <script src="src/ui/events.js"></script>
 <script src="src/ui/leaders.js"></script>

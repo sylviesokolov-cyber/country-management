@@ -69,6 +69,7 @@
  *   pc.perAction                 Political Capital per region action [national]
  *   policyCost.mult              what enacting a policy costs        [national]
  *   policyCooldown.mult          how long a category stays locked    [national]
+ *   development.cap              how far a region can be developed    [region]
  *
  * FLAGS:
  *   austerityHitsMandate    unpaid bills burn Mandate instead of the country
@@ -151,6 +152,13 @@
     /* --- completed tech --- */
     (state.tech.completed || []).forEach(function (id) {
       apply(table, Mandate.TECH.byId(id));
+    });
+
+    /* --- completed national projects ---
+     * A project is a tech node that took two years and a fortune; it reaches
+     * the simulation through exactly the same door. */
+    (state.projects && state.projects.completed || []).forEach(function (id) {
+      apply(table, Mandate.PROJECTS.byId(id));
     });
 
     /* --- active policies (one option per category, always) --- */
@@ -239,6 +247,7 @@
     Mandate.TECH.nodes.forEach(collect);
     Object.keys(Mandate.TRAITS).forEach(function (k) { collect(Mandate.TRAITS[k]); });
     Mandate.POLICIES.forEach(function (category) { category.options.forEach(collect); });
+    Mandate.PROJECTS.forEach(collect);
     Mandate.LEADERS.forEach(function (leader) {
       Mandate.LEADERS.payloads(leader).forEach(collect);
     });
@@ -264,6 +273,9 @@
     /* Phase 4 */
     'pc.perAction', 'policyCost.mult', 'policyCooldown.mult',
     'austerityMandate.mult',
+    /* Phase 5: the national projects. `development.cap` is the only modifier
+     * in the game that moves a hard limit rather than a rate. */
+    'development.cap',
   ];
 
   Mods.audit = function () {

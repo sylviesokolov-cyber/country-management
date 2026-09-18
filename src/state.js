@@ -25,7 +25,7 @@
    * renamed, removed). `migrate()` below then decides what to do with older
    * saves. Getting this in from day one is much cheaper than retrofitting it
    * after players have saves worth keeping. */
-  State.SCHEMA_VERSION = 5;
+  State.SCHEMA_VERSION = 6;
   State.SAVE_KEY = 'mandate:save';
 
   /**
@@ -125,6 +125,16 @@
         completed: [],
         queue: [],
         progress: 0,
+      },
+
+      /* --- PHASE 5: NATIONAL PROJECTS -----------------------------------
+       * One under way at a time, and what has been finished. Like `tech`
+       * above it stores decisions rather than consequences: what a completed
+       * project DOES is looked up from data/projects.js through
+       * src/modifiers.js. */
+      projects: {
+        active: null,       /* { id, progress } — progress is in days built */
+        completed: [],
       },
 
       /* `pool` is who is available to hire right now; `hired` is who works
@@ -231,6 +241,7 @@
          * which is the ONLY thing in the game that moves the meter. */
         mandateBy: {},
         techCompleted: 0,
+        projectsCompleted: 0,
         appointeesHired: 0,
         eventsResolved: 0,
       },
@@ -347,7 +358,7 @@
     /* These are containers the sim writes into without ever checking; a save
      * missing one crashes on the first tick rather than at load. */
     return !!(save.tech && save.appointees && save.policies && save.stats &&
-      save.derived && save.events);
+      save.derived && save.events && save.projects);
   };
 
   State.clearSave = function () {
@@ -470,6 +481,24 @@
           'rise in open revolt.',
       });
       save.schemaVersion = 5;
+    }
+
+    /* --- v5 -> v6: national projects ------------------------------------
+     * Phase 5's answer to the flat late game. A v5 save has no `projects`
+     * block at all, and the sim writes into it on the first tick without
+     * checking — so the container has to exist before the save is handed
+     * back, not the first time something looks for it. */
+    if (save.schemaVersion === 5) {
+      save.projects = { active: null, completed: [] };
+      save.stats = save.stats || {};
+      save.stats.projectsCompleted = 0;
+      save.log = save.log || [];
+      save.log.push({
+        day: save.day || 0,
+        kind: 'system',
+        text: 'The ministry will now hear proposals for national projects.',
+      });
+      save.schemaVersion = 6;
     }
 
     if (save.schemaVersion !== State.SCHEMA_VERSION) {

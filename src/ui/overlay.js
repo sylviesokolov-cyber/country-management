@@ -130,6 +130,21 @@
         bodyEl.appendChild(legend);
       },
     },
+    /* The late game. Six national projects, one at a time — see the header
+     * of data/projects.js for why this tab exists at all. */
+    projects: {
+      title: 'Projects',
+      render: function (state) { Mandate.Ministry.renderProjects(bodyEl, state); },
+    },
+    /* Sound, and the two run controls. The only tab with a live INPUT in it,
+     * which is why it carries `update` instead of being rebuilt on the day
+     * tick like the others — see the note on Overlay.render. */
+    settings: {
+      title: 'Settings',
+      render: function (state) { Mandate.SettingsUI.render(bodyEl, state); },
+      update: function (state) { Mandate.SettingsUI.update(state); },
+      leave: function () { Mandate.SettingsUI.leave(); },
+    },
   };
 
   Overlay.build = function (opts) {
@@ -153,6 +168,7 @@
     var tab = TABS[tabId];
     if (!tab) return;
 
+    leaveCurrent();
     View.viewState.activeTab = tabId;
     bodyEl.scrollTop = 0;   /* a freshly opened tab starts at the top */
     tab.render(handlers.getState());
@@ -180,6 +196,7 @@
   }
 
   Overlay.close = function () {
+    leaveCurrent();
     View.viewState.activeTab = null;
     View.setOpen(overlayEl, false);
     syncButtons();
@@ -195,11 +212,25 @@
   Overlay.render = function (state) {
     var tabId = View.viewState.activeTab;
     if (!tabId) return;
+    var tab = TABS[tabId];
+
+    /* A tab that owns live controls updates its own values in place. Throwing
+     * away a <input type="range"> and building a new one once a second would
+     * take the slider out from under the player's thumb mid-drag. */
+    if (tab && tab.update) { tab.update(state); return; }
+
     if (state.day === lastRenderedDay && tabId === lastRenderedTab) return;
     lastRenderedDay = state.day;
     lastRenderedTab = tabId;
-    rebuild(TABS[tabId], state);
+    rebuild(tab, state);
   };
+
+  /** Tell the tab we are leaving it, if it cares (the Settings tab disarms
+   *  its "resign" confirmation this way). */
+  function leaveCurrent() {
+    var tab = TABS[View.viewState.activeTab];
+    if (tab && tab.leave) tab.leave();
+  }
 
   function syncButtons() {
     tabButtons.forEach(function (btn) {

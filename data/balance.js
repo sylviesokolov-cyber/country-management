@@ -329,6 +329,24 @@
         label: 'Invest',
         blurb: 'Fund local industry. Raises Development — and the upkeep bill.',
         cost: { treasury: 120 },
+        /* Added to the Treasury price per point of development the region
+         * already has, above `costFreeBelow`: 120 in a frontier province,
+         * 152 in one already at 100, 176 at the raised ceiling a Land
+         * Reclamation Authority brings.
+         *
+         * This is the other half of the Phase 5 late-game fix (the first half
+         * is data/projects.js). Raising the development ceiling on its own
+         * only moved the flat part of the run later — the harness measured a
+         * won term capping out at the new limit and ending 31,000 in credit,
+         * with nothing left to buy. A price that climbs with what is already
+         * there means a rich country's surplus has somewhere to go, and makes
+         * the choice between finishing a good province and starting a bad one
+         * a real one instead of an obvious one. */
+        costPerDevelopment: 0.8,
+        /* The first fifty points in a province are the easy ground and cost
+         * list price. Without this floor the surcharge is not a late-game
+         * tax, it is a different game: see the note in Sim.actionCost. */
+        costFreeBelow: 60,
         effect: { development: 6 },
         /* You cannot build in a province that is no longer yours. This is the
          * one line that makes a revolt a different KIND of problem from a

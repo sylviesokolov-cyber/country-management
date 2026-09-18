@@ -45,6 +45,7 @@ const FILES = [
   'data/traits.js',
   'data/appointees.js',
   'data/policies.js',
+  'data/projects.js',
   'data/leaders.js',
   'data/events.js',
   'src/util.js',
@@ -129,6 +130,61 @@ function staff(state, salaryBudgetShare) {
   }
 }
 
+/**
+ * Start a national project when one is affordable, preferring an order.
+ *
+ * Phase 5 added these to answer the flat late game, and a strategy that never
+ * starts one measures the game as it was rather than as it is. Deliberately
+ * greedy and unclever, like every other decision in this file: take the first
+ * thing on the preference list you can pay for today.
+ */
+function projectPlan(state, order) {
+  if (state.projects.active) {
+    /* Cut the losses. A project bills the Treasury every day whether or not
+     * there is one, so carrying on through austerity means paying for a
+     * monument with the provinces — and the harness will do exactly that
+     * forever, because nothing in it ever changes its mind. A player would
+     * stop. Nothing is refunded, which is the point of the decision. */
+    if (state.derived.austerity) Sim.abandonProject(state);
+    return null;
+  }
+  for (const id of order) {
+    if (Sim.projectStatus(state, id) !== 'available') continue;
+    if (Sim.startProject(state, id)) return { started: true };
+
+    /* Eligible and unaffordable. Whether the strategy now SAVES for it — which
+     * means holding Treasury back from Invest and not queueing research — is
+     * the whole difficulty of measuring this system, and two wrong answers
+     * were measured before this one:
+     *
+     *   spend everything, always   projects never start, and the harness
+     *                              reports that they do nothing (proj 0.0)
+     *   save from zero, always     the builder stops developing and stops
+     *                              researching for a third of the term
+     *                              (19 wins -> 2, tech 13 -> 6)
+     *
+     * Neither is a player. A player starts saving when the thing is nearly in
+     * reach, so: only once HALF the Political Capital is already in hand. */
+    const project = M.PROJECTS.byId(id);
+    const pc = project.cost.politicalCapital || 0;
+    if (state.resources.politicalCapital < pc * 0.5) return null;
+
+    /* Two different reserves, and conflating them was the third wrong answer.
+     * Holding Political Capital back from the tech tree costs research and
+     * nothing else. Holding TREASURY back costs development — so it is only
+     * held once the Political Capital is actually in hand and money is the
+     * only thing still missing. Reserved from half-price onward instead, the
+     * builder stopped developing for six hundred days waiting on a currency
+     * it earns at a fifth of a point a day, and died in unrest at day 1,978
+     * with the money still in the bank. */
+    return {
+      saving: true,
+      treasury: state.resources.politicalCapital >= pc ? (project.cost.treasury || 0) : 0,
+    };
+  }
+  return null;
+}
+
 const STRATEGIES = {
   /* Does nothing at all. The control: whatever this scores is the floor, and
    * any strategy that cannot beat it describes a system that does not pay. */
@@ -148,7 +204,14 @@ const STRATEGIES = {
         if (act(state, region, 'relief')) return;
         if (act(state, region, 'publicWorks')) return;
       }
-      research(state, ['governance', 'economy', 'infrastructure', 'security']);
+      /* Projects BEFORE research, so Political Capital is reserved for the
+        * big commitment rather than dribbled into the tree. That ordering is
+        * itself the late-game decision the projects exist to create. */
+      const plan = projectPlan(state, ['endowment', 'court', 'compact', 'academy']);
+      if (plan && plan.started) return;
+      if (!(plan && plan.saving)) {
+        research(state, ['governance', 'economy', 'infrastructure', 'security']);
+      }
       staff(state, 0.15);
     },
   },
@@ -165,15 +228,27 @@ const STRATEGIES = {
         if (act(state, region, 'relief')) return;
         if (act(state, region, 'publicWorks')) return;
       }
+      /* The project is decided BEFORE the day's Invest, because a project
+       * that is being saved for holds Treasury back from it. A flat reserve
+       * held all term is not the answer either — tried at 900, and a builder
+       * that keeps a permanent war chest never develops the country and wins
+       * 2 runs from 36. The reserve exists only while something is actually
+       * being saved for. */
+      const plan = projectPlan(state, ['reclamation', 'court', 'academy', 'endowment', 'compact']);
+      if (plan && plan.started) return;
+      const reserve = plan && plan.saving ? plan.treasury : 0;
+
       /* Then build, richest-first — development pays back fastest where
        * stability is already high. */
-      if (state.resources.treasury > 400) {
+      if (state.resources.treasury > 400 + reserve) {
         const best = state.regions.slice().sort((a, b) => b.stability - a.stability);
         for (const region of best) {
           if (act(state, region, 'invest')) return;
         }
       }
-      research(state, ['economy', 'infrastructure', 'governance', 'security']);
+      if (!(plan && plan.saving)) {
+        research(state, ['economy', 'infrastructure', 'governance', 'security']);
+      }
       staff(state, 0.2);
     },
   },
@@ -190,13 +265,19 @@ const STRATEGIES = {
         if (act(state, region, 'relief')) return;
         if (act(state, region, 'publicWorks')) return;
       }
-      if (state.resources.treasury > 500) {
+      const plan = projectPlan(state, ['reserve', 'court', 'reclamation', 'endowment']);
+      if (plan && plan.started) return;
+      const reserve = plan && plan.saving ? plan.treasury : 0;
+
+      if (state.resources.treasury > 500 + reserve) {
         const best = state.regions.slice().sort((a, b) => b.stability - a.stability);
         for (const region of best) {
           if (act(state, region, 'invest')) return;
         }
       }
-      research(state, ['security', 'infrastructure', 'economy', 'governance']);
+      if (!(plan && plan.saving)) {
+        research(state, ['security', 'infrastructure', 'economy', 'governance']);
+      }
       staff(state, 0.2);
     },
   },
@@ -264,6 +345,11 @@ function runOnce({ leaderId, strategy, seed, sampleEvery }) {
     development: Math.round(state.derived.nationalDevelopment),
     calm: +(Sim.calmShare(state) * 100).toFixed(1),
     tech: state.stats.techCompleted,
+    /* The late-game evidence. `treasury` is the number that named the problem
+     * in the first place — a won run used to end holding 20,000 with nothing
+     * to spend it on — and `projects` is what it is being spent on now. */
+    treasury: Math.round(state.resources.treasury),
+    projects: state.stats.projectsCompleted || 0,
     events: state.stats.eventsResolved,
     revoltDays: state.stats.daysInRevolt || 0,
     samples,
@@ -299,6 +385,8 @@ const SUMMARY_COLUMNS = [
   { label: 'dev', right: true, get: (r) => Math.round(r.development) },
   { label: 'calm%', right: true, get: (r) => r.calm.toFixed(0) },
   { label: 'tech', right: true, get: (r) => r.tech.toFixed(1) },
+  { label: 'proj', right: true, get: (r) => r.projects.toFixed(1) },
+  { label: 'end¤', right: true, get: (r) => Math.round(r.treasury) },
   /* The itemised clock. This is the column set that actually explains a
    * balance result: "builder scores highest and never wins" is a mystery
    * until you can see that it spends a third of its term on Invest. */
@@ -334,6 +422,8 @@ function aggregate(runs) {
     development: mean(runs.map((r) => r.development)),
     calm: mean(runs.map((r) => r.calm)),
     tech: mean(runs.map((r) => r.tech)),
+    treasury: mean(runs.map((r) => r.treasury)),
+    projects: mean(runs.map((r) => r.projects)),
     mandateBy: meanMandateBy(runs),
   };
 }

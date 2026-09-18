@@ -102,6 +102,7 @@
         var chip = node('button', 'queue-chip', techNode.name);
         chip.title = 'Cancel and refund ' + techNode.cost + ' Political Capital';
         chip.setAttribute('aria-label', 'Cancel ' + techNode.name);
+        chip.dataset.sfx = 'close';
         View.onTap(chip, function () { handlers.onCancelTech(id); });
         queue.appendChild(chip);
       });
@@ -138,6 +139,7 @@
 
     var row = node('button', 'tech');
     row.dataset.status = status;
+    row.dataset.sfx = 'none';   /* main.js: queued, or refused */
 
     var main = node('div', 'tech__main');
     main.appendChild(node('div', 'tech__name', techNode.name));
@@ -173,6 +175,152 @@
     });
 
     return row;
+  }
+
+  /* ========================================================================
+   * NATIONAL PROJECTS (Phase 5)
+   *
+   * The screen the late game happens on. It leads with what is being built,
+   * because a project takes two in-game years and "how long left, at the rate
+   * I am actually paying for it" is the only number that matters once one is
+   * under way — the same reasoning as the research bar above, over a much
+   * longer commitment.
+   * ====================================================================== */
+
+  Ministry.renderProjects = function (body, state) {
+    body.innerHTML = '';
+    body.appendChild(projectStatus(state));
+
+    var list = node('div', 'project-list');
+    Mandate.PROJECTS.forEach(function (project) {
+      list.appendChild(projectCard(state, project));
+    });
+    body.appendChild(list);
+
+    var note = node('p', 'note');
+    note.innerHTML = 'A project is the largest commitment in the game: most of ' +
+      'your standing up front, a bill <strong>every day</strong> while it is ' +
+      'built, and only <strong>one at a time</strong>. That daily bill is part ' +
+      'of the same upkeep the rest of the country is paid for out of — so a ' +
+      'project you cannot afford does not stop, it <strong>slows down</strong>, ' +
+      'and it takes the provinces with it.';
+    body.appendChild(note);
+  };
+
+  function projectStatus(state) {
+    var wrap = node('div', 'research-status');
+    var active = state.projects.active;
+
+    if (!active) {
+      wrap.appendChild(node('div', 'research-status__idle', 'No project under way'));
+      wrap.appendChild(node('div', 'research-status__rate',
+        state.projects.completed.length + ' of ' + Mandate.PROJECTS.length +
+        ' built · ' +
+        Util.formatInt(Mandate.Sim.projectUpkeep(state)) + ' ¤/day in standing costs'));
+      return wrap;
+    }
+
+    var project = Mandate.PROJECTS.byId(active.id);
+    var left = project.days - active.progress;
+    /* Progress advances by the share of the day's bill that was paid, so the
+     * honest estimate is the one that assumes today repeats. A government in
+     * austerity should see its monument recede. */
+    var rate = 1 - (state.derived.austerity ? shortfallNow(state) : 0);
+    var days = rate > 0.001 ? Math.ceil(left / rate) : Infinity;
+
+    var head = node('div', 'research-status__head');
+    head.appendChild(node('span', 'research-status__label', 'Building'));
+    head.appendChild(node('span', 'research-status__name', project.name));
+    wrap.appendChild(head);
+
+    var bar = node('div', 'bar');
+    var fill = node('div', 'bar__fill bar__fill--project');
+    fill.style.width = Math.min(100, (active.progress / project.days) * 100).toFixed(1) + '%';
+    bar.appendChild(fill);
+    wrap.appendChild(bar);
+
+    wrap.appendChild(node('div', 'research-status__rate',
+      Math.floor(active.progress) + ' / ' + project.days + ' days · ' +
+      (isFinite(days) ? Util.formatInt(days) + ' days left' : 'stalled — the bill is unpaid') +
+      ' · ' + (project.perDay.treasury || 0) + ' ¤/day'));
+
+    var abandon = node('button', 'mini-btn mini-btn--danger', 'Abandon');
+    abandon.dataset.sfx = 'none';
+    abandon.title = 'Nothing is refunded';
+    View.onTap(abandon, function () { handlers.onAbandonProject(); });
+    wrap.appendChild(abandon);
+
+    return wrap;
+  }
+
+  /** Today's unpaid share of the bill, for the estimate above. */
+  function shortfallNow(state) {
+    var bill = state.derived.upkeepPerDay;
+    if (!bill) return 0;
+    var available = state.resources.treasury + state.derived.treasuryGrossPerDay;
+    return Math.max(0, Math.min(1, (bill - available) / bill));
+  }
+
+  function projectCard(state, project) {
+    var status = Mandate.Sim.projectStatus(state, project.id);
+
+    var card = node('button', 'project');
+    card.dataset.status = status;
+    card.dataset.sfx = 'none';
+
+    var head = node('div', 'project__head');
+    if (Mandate.Icons.has(project.icon)) {
+      head.appendChild(Mandate.Icons.el(project.icon, 'project__icon'));
+    }
+    head.appendChild(node('span', 'project__name', project.name));
+    if (status === 'done') {
+      var tick = node('span', 'project__tick');
+      tick.appendChild(Mandate.Icons.el('done'));
+      head.appendChild(tick);
+    } else {
+      head.appendChild(node('span', 'project__years',
+        (project.days / 365).toFixed(1) + ' yrs'));
+    }
+    card.appendChild(head);
+
+    card.appendChild(node('p', 'project__blurb', project.blurb));
+    /* What it CHANGES, in the player's language, always — including on a card
+     * that is already built. A project is a rule change, and a rule change
+     * the player cannot re-read is one they will forget they are playing
+     * under. */
+    card.appendChild(node('p', 'project__changes', project.changes));
+
+    if (status !== 'done') {
+      var costs = node('div', 'project__costs');
+      costs.appendChild(costChip(project.cost.politicalCapital, 'pc'));
+      costs.appendChild(costChip(project.cost.treasury, '¤'));
+      costs.appendChild(costChip(project.cost.manpower, 'mp'));
+      costs.appendChild(costChip(project.perDay && project.perDay.treasury,
+        '¤/day while building'));
+      costs.appendChild(costChip(project.upkeep && project.upkeep.treasury,
+        '¤/day forever'));
+      card.appendChild(costs);
+
+      var check = Mandate.Sim.canStartProject(state, project.id);
+      if (!check.ok) card.appendChild(node('small', 'project__reason', check.reason));
+      card.disabled = !check.ok;
+
+      View.onTap(card, function () {
+        if (card.disabled) return;
+        handlers.onStartProject(project.id);
+      });
+    } else {
+      card.disabled = true;
+    }
+
+    return card;
+  }
+
+  function costChip(value, unit) {
+    var chip = node('span', 'project__cost');
+    if (!value) { chip.hidden = true; return chip; }
+    chip.textContent = Util.formatInt(value) + ' ' + unit;
+    return chip;
   }
 
   /* ========================================================================
@@ -286,6 +434,7 @@
         Util.formatInt(Mandate.Sim.hiringFee(state, person)) + ' ¤ to hire'));
       var hire = node('button', 'mini-btn', check.ok ? 'Hire' : check.reason);
       hire.disabled = !check.ok;
+      hire.dataset.sfx = 'none';
       View.onTap(hire, function () {
         if (hire.disabled) return;
         handlers.onHire(person.id);
@@ -380,6 +529,7 @@
     var active = state.policies.active[category.id] === option.id;
 
     var btn = node('button', 'policy-option');
+    btn.dataset.sfx = 'none';
     btn.setAttribute('aria-pressed', active ? 'true' : 'false');
 
     var head = node('div', 'policy-option__head');

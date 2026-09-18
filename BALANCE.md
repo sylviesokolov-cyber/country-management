@@ -596,3 +596,126 @@ keeping:
   Invest will ever bring it back — and Invest is what a revolt refuses. It
   resolves (Relief lifts stability, which ends the revolt, which re-permits
   Invest), but it is a tight corner and no playtest has been near it yet.
+
+---
+
+## Phase 5b — the late game, and the price of building (balance v6)
+
+Reproduce everything below with:
+
+```
+node tools/harness.js --compare --seeds 8
+node tools/harness.js --leader comptroller --strategy builder --seeds 1 --curve
+```
+
+### The problem, stated as a number
+
+Three sessions running, the DEVLOG opened with "the late game is flat". The
+harness says it in one line — the `end¤` column, which is the Treasury a run
+is still holding when the term ends:
+
+| leader / strategy | end¤ (before) |
+| --- | --- |
+| comptroller / builder | 16,076 |
+| engineer / builder | 10,852 |
+| caretaker / builder | 6,941 |
+
+Development caps at 16 × 100 = 1,600 around day 3,000, Invest is then refused
+everywhere, and the money simply stacks up. Political Capital pins at 100 for
+the same reason: by then the tree holds nothing worth queueing.
+
+### Two changes, because one was not enough
+
+**1. National projects** (`data/projects.js`) — six late-game undertakings,
+one at a time, each a `mods` payload merged by `src/modifiers.js` like a tech
+node. One of them (Land Reclamation) raises the development ceiling by 30, via
+the only modifier in the game that moves a hard limit rather than a rate.
+
+**2. `invest.costPerDevelopment`** — Invest costs 0.8 Treasury more per point
+of development the region already holds, above `costFreeBelow: 60`. A province
+at 100 costs 152 instead of 120; at the raised ceiling, 176.
+
+The second change exists because the first one alone did not work. With the
+ceiling raised and nothing else changed, a won run capped out again at the new
+limit and finished **31,220** in credit — the flat stretch had simply moved
+later. The surcharge is what gives a rich country somewhere to put its money,
+and it makes finishing a good province a real choice against starting a bad
+one.
+
+### Where it ended up (8 seeds × 6 leaders)
+
+Both columns are 8 seeds × 6 leaders, the second measured against the same
+commit with these two changes reverted:
+
+| strategy | wins before | wins after | mean score before → after | mean end¤ after |
+| --- | --- | --- | --- | --- |
+| idle | 0/48 | 0/48 | 704 → 704 | — |
+| patcher | 12/48 | 12/48 | 8,129 → 8,129 | ~50 |
+| builder | 22/48 | 20/48 | 15,137 → 14,027 | 300–2,600 |
+| garrisoner | 13/48 | 16/48 | 12,543 → 12,283 | 350–4,900 |
+
+The builder pays two wins for this. That is the intended direction and not a
+large price: building is dearer late, so a term that *only* builds is a little
+more likely to run out of clock, while garrisoning — which the Strategic
+Reserve Corps is for — gains three. What must not happen is the hierarchy
+inverting, and it does not.
+
+The hierarchy the design asks for — build ≥ garrison > patch > idle — holds,
+and the end-of-term Treasury is down by roughly an order of magnitude. In the
+seeds where Land Reclamation is completed the last 600 days read completely
+differently: `comptroller/builder` sits on 12,575 at day 3,420 and has spent
+it back down to 6,639 by day 3,600, because there is finally something to buy.
+
+### Four wrong answers, all of them measured
+
+Worth recording, because each looked obviously right when it was written:
+
+1. **Projects priced as a lump** (2,000–3,000 Treasury up front). Unreachable:
+   every strategy spends its Treasury down to the price of an Invest, so the
+   sum never exists until the term is nearly over. Almost all of a project's
+   price is now a **daily bill** instead, which competes with Invest on every
+   day it runs.
+2. **Projects priced at 13–20 a day.** A well-run term nets 20–25 a day, so
+   that is the entire surplus of the country that started one. The harness
+   watched a builder go bankrupt at day 1,800 and lose to the austerity
+   spiral. Now 6–10 a day.
+3. **Projects gated on the calendar.** The Academy asked for day 1,400 and
+   five research nodes and nothing else, so the harness started it at
+   development 530, stalled it at 40% built, and took the run down. Every
+   project now also asks for the **development that pays the bill**.
+4. **The surcharge charged from zero** (1.6/point, no floor). That is not a
+   late-game tax, it is a different game: builder fell from 19 wins to 7 and
+   from 1,341 development to 554 — a country that could no longer afford to
+   develop at all. The first 60 points of a province stay at list price.
+
+### Changes to the harness itself
+
+The harness now starts projects, and getting it to play them like a person
+rather than like a policy took three attempts — recorded in the comments in
+`tools/harness.js` because each failure looked like a balance result:
+
+- Spend everything always → projects never start; reports that the system does
+  nothing.
+- Save from zero always → the builder stops developing and researching for a
+  third of the term; 19 wins → 2, tech 13 → 6.
+- **Two separate reserves** (what shipped). Political Capital is held back from
+  the tech tree once half the price is in hand — that costs research and
+  nothing else. Treasury is held back from Invest only once the Political
+  Capital is actually in hand and money is the last thing missing.
+
+It also abandons a project when the country is in austerity, because nothing
+else in the harness ever changes its mind, and a player would.
+
+### Still open
+
+- **Projects complete in about a third of harness runs** (`proj` 0.1–0.5). The
+  strategies are deliberately crude and never plan for one, so this is a floor
+  rather than a verdict — but it does mean most of the measured improvement in
+  `end¤` comes from the Invest surcharge, not from the projects. A human
+  playing for a project should see much more of them; no playtest has
+  confirmed it.
+- The 12,575 spike at day 3,420 above is a project still being built. The flat
+  stretch is shorter and has decisions in it; it is not gone.
+- Patch fatigue is still doing less than it looks (carried from Phase 5).
+- A revolt can still raze a frontier region to 0 development (carried from
+  Phase 5).

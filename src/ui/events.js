@@ -77,6 +77,7 @@
   function buildChoice(state, pending, choice) {
     var btn = node('button', 'choice');
     btn.dataset.choiceId = choice.id;
+    btn.dataset.sfx = 'none';   /* main.js sounds the decision, not the tap */
 
     var main = node('div', 'choice__main');
     main.appendChild(node('div', 'choice__label',

@@ -38,6 +38,11 @@
      * leader screen — so a provisional run is created and then THROWN AWAY the
      * moment a leader is picked. It is never saved, because a run the player
      * has not started is not a run. */
+    /* Audio arms itself here and starts on the player's first tap — every
+     * mobile browser refuses to run an AudioContext before a gesture, and a
+     * suspended one silently swallows everything scheduled into it. */
+    Mandate.Audio.install();
+
     var resumed = Mandate.State.load();
     state = resumed || Mandate.State.createNewGame();
 
@@ -68,16 +73,25 @@
      * these tabs only rebuild when the DAY changes — without it a tap would
      * appear to do nothing for up to a second, or forever while paused. */
     Mandate.Ministry.build({
-      onQueueTech: function (id) { commit(Mandate.Sim.queueTech(state, id)); },
-      onCancelTech: function (id) { commit(Mandate.Sim.cancelTech(state, id)); },
-      onHire: function (id) { commit(Mandate.Sim.hire(state, id)); },
-      onDismiss: function (id) { commit(Mandate.Sim.dismiss(state, id)); },
+      onQueueTech: function (id) { commit(Mandate.Sim.queueTech(state, id), 'tick'); },
+      onCancelTech: function (id) { commit(Mandate.Sim.cancelTech(state, id), 'close'); },
+      onHire: function (id) { commit(Mandate.Sim.hire(state, id), 'hire'); },
+      onDismiss: function (id) { commit(Mandate.Sim.dismiss(state, id), 'withdraw'); },
       onAssign: function (id, regionId) {
-        commit(Mandate.Sim.assign(state, id, regionId));
+        commit(Mandate.Sim.assign(state, id, regionId), 'tick');
       },
       onEnactPolicy: function (categoryId, optionId) {
-        commit(Mandate.Sim.enactPolicy(state, categoryId, optionId));
+        commit(Mandate.Sim.enactPolicy(state, categoryId, optionId), 'policy');
       },
+      onStartProject: function (id) { commit(Mandate.Sim.startProject(state, id), 'invest'); },
+      onAbandonProject: function () { commit(Mandate.Sim.abandonProject(state), 'withdraw'); },
+    });
+
+    /* The Settings tab. Saving and restarting are boot-level concerns, so
+     * they live here rather than in the tab that draws the buttons. */
+    Mandate.SettingsUI.build({
+      onSave: function () { return Mandate.State.save(state); },
+      onRestart: resign,
     });
 
     /* The two bottom-corner buttons are just overlay openers. */
@@ -98,6 +112,7 @@
 
     Mandate.View.onTap(Util.el('veil-restart'), function () {
       Util.el('veil').classList.remove('is-open');
+      Mandate.Audio.setScene('menu');
       /* Close whatever was left open behind the summary — the leader screen
        * is a fresh start, and the last run's Ministry showing through it is
        * the previous government's paperwork. */
@@ -119,8 +134,10 @@
      * there is no run, and the provisional state above is only scenery. */
     if (resumed) {
       Mandate.LeaderSelect.close();
+      Mandate.Audio.setScene('run');
     } else {
       Mandate.LeaderSelect.open();
+      Mandate.Audio.setScene('menu');
       state.speed = 0;
     }
 
@@ -147,6 +164,9 @@
     Mandate.Overlay.render(s);
     Mandate.EventUI.render(s);
     Mandate.Alerts.render(s);
+    /* The score and the cues read state exactly like every other view, on the
+     * same pass. Nothing pushes audio; audio notices. */
+    Mandate.Audio.observe(s);
     renderGameOver(s);
   }
 
@@ -185,16 +205,30 @@
    * redraw the open tab. Passing the sim's own return value through means the
    * UI never has to decide for itself whether something happened.
    */
-  function commit(happened) {
-    if (!happened) return;
+  function commit(happened, cue) {
+    /* The refusal is as much feedback as the confirmation: a tap that did
+     * nothing has to sound like a tap that did nothing, or the player is left
+     * wondering whether the button is broken. */
+    if (!happened) { Mandate.Audio.sfx('deny'); return; }
+    if (cue) Mandate.Audio.sfx(cue);
     Mandate.State.save(state);
     Mandate.Overlay.refresh(state);
   }
+
+  /* Each region action has its OWN sound, because they differ in kind rather
+   * than in size (DESIGN.md 2.2): building is wood and a rising fifth,
+   * garrisoning is a drum, relief is the one warm chord in the game. A player
+   * should be able to tell which one they just pressed without looking. */
+  var ACTION_CUES = {
+    invest: 'invest', publicWorks: 'works', garrison: 'garrison',
+    withdraw: 'withdraw', relief: 'relief',
+  };
 
   function onRegionAction(regionId, actionId) {
     /* The UI asks; the simulation decides. If the action is illegal this is a
      * no-op and the button simply stays greyed out on the next frame. */
     if (Mandate.Sim.applyAction(state, regionId, actionId)) {
+      Mandate.Audio.sfx(ACTION_CUES[actionId] || 'tap');
       Mandate.State.save(state);
       /* A region action can change what a management tab shows — an Invest
        * moves the Manpower cap, a Garrison changes what a posting is worth. */
@@ -208,7 +242,8 @@
    * at before they were interrupted.
    */
   function onEventChoice(choiceId) {
-    if (!Mandate.Sim.resolveEvent(state, choiceId)) return;
+    if (!Mandate.Sim.resolveEvent(state, choiceId)) { Mandate.Audio.sfx('deny'); return; }
+    Mandate.Audio.sfx('policy');
     state.speed = speedBeforeEvent;
     loop.resetClock();
     Mandate.State.save(state);
@@ -223,6 +258,9 @@
    * nobody would ever find.
    */
   function onLeaderPicked(leaderId) {
+    Mandate.Audio.sfx('leader');
+    Mandate.Audio.reset();
+    Mandate.Audio.setScene('run');
     Mandate.State.clearSave();
     state = Mandate.State.createNewGame(leaderId);
     Mandate.Sim.refresh(state);
@@ -245,6 +283,29 @@
     Util.el('veil').classList.remove('is-open');
 
     Mandate.State.save(state);
+  }
+
+  /**
+   * Resign: end this term now, from the Settings tab.
+   *
+   * It goes through Sim.endRun rather than simply clearing the save, so a
+   * resignation is a run that ENDED — logged, scored as the failure it is,
+   * and with the same end-of-term screen as any other. A quit button that
+   * quietly deletes the world would be the one place in the game where
+   * something happened that the run log did not know about.
+   */
+  function resign() {
+    if (!state.gameOver) {
+      Mandate.Sim.endRun(state, false,
+        'You resigned. The term was not served out.');
+    }
+    Mandate.Audio.silenceEnding();
+    Mandate.State.clearSave();
+    Mandate.Overlay.close();
+    Mandate.Panel.close();
+    Util.el('veil').classList.remove('is-open');
+    Mandate.Audio.setScene('menu');
+    Mandate.LeaderSelect.open();
   }
 
   function onOverlayOpen(tabId) {

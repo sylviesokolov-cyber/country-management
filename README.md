@@ -100,6 +100,7 @@ data/                   ── ALL TUNABLE / AUTHORED CONTENT ──
   policies.js           standing national decisions
   leaders.js            the six leaders: buff, handicap, mechanic
   events.js             16 events with branching choices and conditions
+  projects.js           six national projects — the late game
 src/
   util.js               clamp, number and date formatting
   state.js              the game state object + versioned save/load
@@ -107,17 +108,19 @@ src/
   sim.js                THE SIMULATION — tick(), actions, derived values
   loop.js               fixed-timestep clock (real time → ticks)
   main.js               boot and wiring
+  audio.js              the adaptive score and the sound cues, synthesised
   ui/
     view.js             shared view plumbing (tap handling, memoised writes)
     map.js              builds and updates the SVG map
     hud.js              the floating HUD (chips, clock, speed, Mandate gauge)
     panel.js            region detail panel (slides in from the right)
-    ministry.js         the Tech, Appointees and Policies screens
+    ministry.js         the Tech, Appointees, Policies and Projects screens
+    settings.js         the mixer, and save / resign
     events.js           the event card, and the run log behind it
     alerts.js           the news ticker and the alert toasts
     leaders.js          the leader selection screen
     overlay.js          full-screen management overlay + the region list
-    icons.js            the 46-glyph SVG sprite and its helpers
+    icons.js            the 54-glyph SVG sprite and its helpers
 tools/
   harness.js            headless balance harness — runs the real sim in Node
 assets/
@@ -135,7 +138,7 @@ runs.** Tuning never touches `src/`.
 
 ## Art and assets
 
-The look is described in `DESIGN.md` §2.9. Two things come from outside the
+The look is described in `DESIGN.md` §2.11. Two things come from outside the
 project, both permissively licensed, both committed to this repository rather
 than fetched at runtime so the game still opens from `file://` and still works
 offline:
@@ -145,6 +148,11 @@ offline:
   in the same geometry.
 - **Typeface** — [Barlow](https://fonts.google.com/specimen/Barlow) by Jeremy
   Tribby (SIL OFL 1.1), latin subset, in `assets/fonts/`.
+
+**There is no audio in `assets/` either, and that is deliberate**: the music is
+synthesised in the Web Audio graph at runtime (`src/audio.js`), so it costs
+nothing to download, is licence-free by construction, and — the actual reason —
+follows the state of the country. See `DESIGN.md` §2.10.
 
 Everything else — the map, the leader crests, the palette — is original.
 `assets/LICENSES.md` has the full notices, and also records the sources that

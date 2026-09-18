@@ -60,6 +60,7 @@
   function card(leader, best) {
     var btn = node('button', 'leader');
     btn.dataset.difficulty = String(leader.difficulty);
+    btn.dataset.sfx = 'none';   /* taking office has its own cue */
     /* The leader's accent drives the crest, the card's top edge and its
      * selected state, all from one custom property. */
     btn.style.setProperty('--leader-accent', leader.accent);

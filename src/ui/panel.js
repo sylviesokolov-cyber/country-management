@@ -348,6 +348,10 @@
     var btn = document.createElement('button');
     btn.className = 'action';
     btn.dataset.actionId = actionId;
+    /* The sound of a region action is decided by whether the SIM accepted it
+     * — a hammer for a Public Works, a refusal buzz for one you cannot
+     * afford. main.js plays it; this button stays quiet. */
+    btn.dataset.sfx = 'none';
 
     var main = document.createElement('div');
     main.className = 'action__main';

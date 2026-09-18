@@ -577,3 +577,103 @@ Template:
 - Sound and haptics are still untouched, and are now the biggest remaining
   gap between this and something that feels shipped.
 - Finish accessibility: contrast audit and keyboard focus order.
+
+## 2026-09-18 — Sound, and the late game stops being flat
+
+**Built**
+- **An adaptive score, synthesised** (`src/audio.js`, ~800 lines). No audio
+  files, and not as a compromise: `<audio src>` and `decodeAudioData` are both
+  CORS-blocked from `file://`, a 55-minute music bed is several megabytes
+  against a 400KB game, and a recording cannot follow the country. One
+  `tension` value — unrest, revolts, Mandate left, whether the bill is paid,
+  smoothed over ~12 seconds — drives the tempo, the mode (D ionian → aeolian →
+  phrygian, tonic fixed, changing only at phrase boundaries), the filters and
+  which layers are playing. Drone and pad always; **bells only while the
+  country is calm**; drum from tension 0.22; a low brass cluster only during
+  revolts; a heartbeat in the last fifth of a government's life. A paused game
+  keeps the drone and loses everything that moves.
+- **Twenty-odd sound cues**, built from four voice helpers (an enveloped
+  oscillator, filtered noise, two-operator FM, and a timpani made of both).
+  Each is written to be recognised rather than admired: Invest is wood and a
+  rising fifth, Public Works is a hammer, Garrison is a drum and a snare roll,
+  Relief is the one warm chord in the game, a revolt is a brass cluster and
+  rubble. Plus haptics on the decisions that matter.
+- **A Settings tab** (`src/ui/settings.js`): a four-control mixer applied live
+  while the slider moves and stored outside the save, save-now that reports
+  honestly when localStorage is blocked, and resign — which ends the term
+  through `Sim.endRun` like any other ending rather than deleting the world,
+  and asks twice in place rather than in a `confirm()` the browser draws over
+  a fullscreen game.
+- **National projects** (`data/projects.js` + the sim + a tab): six late-game
+  undertakings, one at a time, paid for with Political Capital up front and a
+  daily Treasury bill for two in-game years that goes through the *same upkeep
+  bill* as everything else — so a project advances by the share of the day's
+  bill that was actually paid, and an overcommitted government stalls its own
+  monument. Each pays off as an ordinary `mods` payload through
+  `src/modifiers.js`; **no new mechanism was needed for any of it** except one
+  modifier key, `development.cap`, which is the first thing in the game to
+  move a hard limit rather than a rate.
+- **The marginal cost of development**: `invest.costPerDevelopment`, above a
+  floor of 60 points. Building where much is already built costs more.
+- Schema v5 → v6 with a migration, `State.isUsable()` updated, both tested in
+  Node against `State.migrate` directly.
+- The overlay tab strip scrolls horizontally now, because seven tabs do not fit
+  across 844px at a readable size.
+- The harness knows about projects, reports `proj` and `end¤`, and abandons a
+  project when the country is in austerity.
+
+**Broke / learned**
+- **Raising the development ceiling did not fix the flat late game; it moved
+  it.** With Land Reclamation and nothing else, a won run capped out again at
+  the new limit and finished **31,220** in credit. The Invest surcharge is what
+  actually absorbs a rich country's surplus, and the two changes only work
+  together.
+- **Four separate wrong prices, all of them measured**, and each looked
+  obviously right when written: projects as a lump sum (unreachable — every
+  strategy spends down to the price of an Invest, so the sum never exists until
+  the term is over); at 13–20 a day (that is the *entire* surplus of a
+  well-run country: bankrupt at day 1,800, dead to austerity); gated on the
+  calendar alone (the Academy started at development 530 and took the run down
+  with it — every project now asks for the development that pays its bill); and
+  the surcharge charged from zero at 1.6/point, which was not a late-game tax
+  but a different game — builder 19 wins → 7, development 1,341 → 554.
+- **Most of the wasted time went on the harness, not the game.** Getting it to
+  take a project like a person took three attempts: spend-everything-always
+  (projects never start, so the system "does nothing"), save-from-zero-always
+  (the builder stops developing *and* researching for a third of the term: 19
+  wins → 2, tech 13 → 6), and finally **two separate reserves** — hold
+  Political Capital back from the tech tree once half the price is in hand,
+  because that costs only research; hold **Treasury** back from Invest only
+  once the Political Capital is already in hand and money is the last thing
+  missing. A strategy that gets this wrong reports a balance result that is
+  really a fact about itself.
+- **A tab with a live `<input>` cannot be rebuilt on the day tick.** The
+  management tabs rebuild about once a second, which would tear the volume
+  slider out from under the player's thumb mid-drag. Tabs may now carry an
+  `update` instead of being rebuilt, and Settings writes its two moving values
+  in place.
+- **Priming matters for anything that reads the run log.** The first version
+  replayed ten years of history as sound cues on the boot frame of a resumed
+  save. Same class of bug as the ticker's, one phase later.
+- Resigning is still a lost run as far as the simulation is concerned, so it
+  fired the defeat sting over a button the player deliberately pressed. There
+  is now one call to silence it, rather than a second notion of "ended".
+- Verified in a headless browser by **counting oscillators**: ~4 voices/second
+  in a calm country, and when the country is forced into revolt the noise
+  sources (drum skins) appear while the bell count falls — i.e. the arrangement
+  really does swap rather than just getting louder. That is not the same as
+  hearing it on a phone speaker, which nothing has done yet.
+
+**Next**
+- **Play it on a phone, with the sound on.** Both remaining Phase 5 items are
+  now "a human has to do this": the 45–60 minute window, and whether the score
+  actually sounds good on a speaker that starts at 400Hz.
+- **Playtest the projects.** The harness finishes one in about a third of runs
+  and never plans for one, so most of the measured `end¤` improvement is the
+  Invest surcharge rather than the projects. A human playing *for* a project
+  should see far more of them.
+- Accessibility: the contrast audit and keyboard focus order are the last
+  unfinished Phase 5 item that is not a playtest. The new slider and toggle
+  both have focus styles; nothing else has been checked.
+- Then Phase 6 — and the 12 Play Store testers, still not started, still a
+  14-day clock.
