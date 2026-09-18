@@ -132,8 +132,14 @@
        * The only way to reach the end is to keep national stability above
        * `approvalPivot` for long enough that approval buys back the difference
        * — i.e. the win condition is "govern well", expressed as a number
-       * rather than as a rule. */
-      termDays: 3650,
+       * rather than as a rule.
+       *
+       * THE NUMBER ITSELF NOW LIVES IN `data/setup.js`, because the player
+       * chooses it: a term is 1,825 or 3,650 days depending on the setup, and
+       * a second copy here would be a second answer to the same question.
+       * Read it with `Sim.termDays(state)`, never from this file. The
+       * paragraph above stays because it is the ARGUMENT for the number, and
+       * `Setup.audit()` is that argument turned into a check that runs. */
       unstableBelow: UNSTABLE_BELOW,
       /* Used ONLY under the `austerityHitsMandate` flag (Deficit Financing).
        * The unpaid SHARE of the day's bill is charged here instead of eating

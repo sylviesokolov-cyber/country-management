@@ -173,6 +173,17 @@
          they have earned it. See the header of src/ui/alerts.js. -->
     <div class="toasts" id="toasts" aria-live="polite"></div>
 
+    <!-- left rail: which of the three region numbers the map is painting.
+         Filled by src/ui/map.js, which owns the list of layers. -->
+    <div class="hud-leftrail layer-switch glass">
+      <div class="layer-switch__buttons" id="layer-switch"
+           role="group" aria-label="Map layer"></div>
+      <!-- Inside the card, not floating over the map: a bare caption sat on
+           top of a bright region and over the region labels, and was
+           unreadable against both. -->
+      <p class="layer-legend" id="layer-legend"></p>
+    </div>
+
     <!-- bottom-left: opens the full-screen management overlay -->
     <button class="hud-bottomleft corner-btn" id="btn-ministry" data-sfx="open">
       <span class="corner-btn__icon" data-icon="ministry" aria-hidden="true"></span>
@@ -258,9 +269,13 @@
     <div class="leader-select">
       <div class="leader-select__head">
         <div class="veil__title">Who takes office?</div>
-        <p class="panel__subtitle">One term. Ten years. Sixteen regions that
-          have heard it all before.</p>
+        <!-- The length is the player's choice now, so the subtitle is written
+             by src/ui/leaders.js rather than fixed here. -->
+        <p class="panel__subtitle" id="leader-subtitle"></p>
       </div>
+      <!-- How hard, and for how long. Built from data/setup.js — this file has
+           no idea how many difficulties there are. -->
+      <div class="setup-bar" id="leader-setup"></div>
       <div class="leader-grid" id="leader-grid"></div>
     </div>
   </div>
@@ -276,6 +291,9 @@
      Order: data -> helpers -> simulation -> view -> boot.
      ======================================================================== -->
 <script src="data/balance.js"></script>
+<!-- The two choices made before a leader is picked: how hard, and for how
+     long. Both are ordinary modifier payloads, so this is a data file. -->
+<script src="data/setup.js"></script>
 <script src="data/map-geometry.js"></script>
 <script src="data/regions.js"></script>
 <!-- Phase 3 content: the tech tree, appointee traits and the hiring pool's raw

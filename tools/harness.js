@@ -8,6 +8,8 @@
  *     node tools/harness.js --leader reformer  # one leader
  *     node tools/harness.js --strategy builder --seeds 8 --curve
  *     node tools/harness.js --compare          # strategy x leader win table
+ *     node tools/harness.js --difficulty hard --term short
+ *     node tools/harness.js --ladder           # every difficulty x term
  *
  * WHY THIS FILE EXISTS, AND WHY IT KEPT NOT EXISTING
  * -------------------------------------------------
@@ -39,6 +41,7 @@ const ROOT = path.join(__dirname, '..');
 
 const FILES = [
   'data/balance.js',
+  'data/setup.js',
   'data/map-geometry.js',
   'data/regions.js',
   'data/tech.js',
@@ -305,14 +308,14 @@ function answerEvent(state) {
 /* ---------------------------------------------------------------------------
  * ONE RUN
  * ------------------------------------------------------------------------- */
-function runOnce({ leaderId, strategy, seed, sampleEvery }) {
-  const state = State.createNewGame(leaderId);
+function runOnce({ leaderId, strategy, seed, sampleEvery, setup }) {
+  const state = State.createNewGame(leaderId, setup);
   state.rngSeed = seed >>> 0 || 1;
   Sim.refresh(state);
 
   const samples = [];
   const strat = STRATEGIES[strategy];
-  const limit = BALANCE.mandate.termDays;
+  const limit = Sim.termDays(state);
 
   while (!state.gameOver && state.day < limit) {
     Sim.tick(state);
@@ -432,7 +435,10 @@ function aggregate(runs) {
  * CLI
  * ------------------------------------------------------------------------- */
 function parseArgs(argv) {
-  const args = { seeds: 6, strategy: null, leader: null, curve: false, compare: false };
+  const args = {
+    seeds: 6, strategy: null, leader: null, curve: false, compare: false,
+    difficulty: null, term: null, ladder: false,
+  };
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i];
     if (arg === '--curve') args.curve = true;
@@ -440,6 +446,9 @@ function parseArgs(argv) {
     else if (arg === '--seeds') args.seeds = parseInt(argv[++i], 10);
     else if (arg === '--strategy') args.strategy = argv[++i];
     else if (arg === '--leader') args.leader = argv[++i];
+    else if (arg === '--difficulty') args.difficulty = argv[++i];
+    else if (arg === '--term') args.term = argv[++i];
+    else if (arg === '--ladder') args.ladder = true;
     else if (arg === '--audit') args.audit = true;
     else { console.error('unknown argument: ' + arg); process.exit(1); }
   }
@@ -458,15 +467,70 @@ function main() {
     unread.forEach((key) => console.log('  ' + key));
     console.log('');
   }
+
+  /* The other audit that must run on every sweep: no difficulty x term pair
+   * may be survivable by a player who does nothing. That invariant is the
+   * whole win condition (DESIGN.md 2.8), and it is arithmetic, so it is
+   * checked rather than remembered. */
+  const waitable = M.SETUP.audit();
+  if (waitable.length) {
+    console.log('WARNING: these setups can be won by idling:');
+    waitable.forEach((line) => console.log('  ' + line));
+    console.log('');
+  }
   if (args.audit) return;
 
   const leaders = args.leader ? [args.leader] : LEADERS.map((l) => l.id);
   const strategies = args.strategy ? [args.strategy] : Object.keys(STRATEGIES);
   const seeds = Array.from({ length: args.seeds }, (_, i) => 1000 + i * 7919);
+  const setup = {
+    difficultyId: args.difficulty || M.SETUP.DEFAULT.difficultyId,
+    termId: args.term || M.SETUP.DEFAULT.termId,
+  };
+
+  /* --- the ladder: is a harder difficulty actually harder? ---------------
+   * The one question a difficulty ladder has to answer, and the only way to
+   * answer it is to play every rung. One strategy across every difficulty x
+   * term pair, so the win rates are comparable down the column. */
+  if (args.ladder) {
+    const rungs = [];
+    for (const difficulty of M.SETUP.DIFFICULTIES) {
+      for (const term of M.SETUP.TERMS) {
+        const runs = [];
+        for (const leaderId of leaders) {
+          for (const strategy of strategies) {
+            for (const seed of seeds) {
+              runs.push(runOnce({
+                leaderId, strategy, seed,
+                setup: { difficultyId: difficulty.id, termId: term.id },
+              }));
+            }
+          }
+        }
+        const row = aggregate(runs);
+        row.difficulty = difficulty.id;
+        row.term = term.id;
+        rungs.push(row);
+      }
+    }
+    table(rungs, [
+      { label: 'difficulty', get: (r) => r.difficulty },
+      { label: 'term', get: (r) => r.term },
+      { label: 'runs', right: true, get: (r) => r.runs },
+      { label: 'won', right: true, get: (r) => r.won + '/' + r.runs },
+      { label: 'days', right: true, get: (r) => Math.round(r.days) },
+      { label: 'score', right: true, get: (r) => Math.round(r.score) },
+      { label: 'stab', right: true, get: (r) => r.stability.toFixed(1) },
+      { label: 'dev', right: true, get: (r) => Math.round(r.development) },
+      { label: 'tech', right: true, get: (r) => r.tech.toFixed(1) },
+    ]);
+    return;
+  }
 
   if (args.curve) {
     const run = runOnce({
-      leaderId: leaders[0], strategy: strategies[0], seed: seeds[0], sampleEvery: 180,
+      leaderId: leaders[0], strategy: strategies[0], seed: seeds[0],
+      sampleEvery: 180, setup,
     });
     console.log('curve: ' + run.leaderId + ' / ' + run.strategy + ' / seed ' + run.seed);
     table(run.samples, [
@@ -492,7 +556,7 @@ function main() {
   const rows = [];
   for (const leaderId of leaders) {
     for (const strategy of strategies) {
-      const runs = seeds.map((seed) => runOnce({ leaderId, strategy, seed }));
+      const runs = seeds.map((seed) => runOnce({ leaderId, strategy, seed, setup }));
       rows.push(aggregate(runs));
     }
   }

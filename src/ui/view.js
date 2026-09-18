@@ -54,25 +54,67 @@
   };
 
   /* ------------------------------------------------------------------------
-   * onTap: use `pointerdown`, not `click`.
+   * onTap: confirm on release, not on touchdown — but never wait for `click`.
    *
    * On touch devices `click` fires only after the browser has decided the
    * gesture wasn't a scroll, a drag or a double-tap-zoom — historically ~300ms,
-   * still noticeably laggy today. `pointerdown` fires the instant the finger
-   * lands, which is what makes a game feel responsive rather than sluggish.
+   * still noticeably laggy today. `pointerup` carries none of that delay: it
+   * is a raw pointer event, so it is still effectively instant.
+   *
+   * This USED to fire on `pointerdown` instead, which was a real bug rather
+   * than an optimisation: any tappable row inside a `.scrollable` list (the
+   * region list, the run log, the tech tree, an appointee card) fired its tap
+   * the instant a finger landed on it, before a drag could move the list at
+   * all — so touching a row to scroll past it always opened it instead. A
+   * tap now only confirms if the pointer comes up within `TAP_SLOP` pixels of
+   * where it went down; anything that moves further is a scroll or a drag and
+   * is silently let go, exactly like a native app's touch handling.
    *
    * The cost is keyboard accessibility (no keyboard fires pointer events), so
    * we add Enter/Space handling explicitly.
    * ---------------------------------------------------------------------- */
+  var TAP_SLOP = 10;   /* px of pointer travel still forgiven as a shaky tap */
+
   View.onTap = function (el, handler) {
     if (!el) return;
+
+    /* Per-element, not module-level: two controls can be mid-gesture at once
+     * (two fingers on a phone), and each needs its own start point and its
+     * own "has this already left tap range" flag. */
+    var tracking = false;
+    var startX = 0;
+    var startY = 0;
 
     el.addEventListener('pointerdown', function (event) {
       /* Ignore right-click / middle-click when played in a desktop browser. */
       if (event.pointerType === 'mouse' && event.button !== 0) return;
+      tracking = true;
+      startX = event.clientX;
+      startY = event.clientY;
+    });
+
+    /* Touch pointers implicitly stay targeted at the element they started on
+     * even once the finger has moved off it — the same retargeting legacy
+     * touch events always did — so this keeps receiving move/up/cancel for
+     * the whole gesture without needing explicit pointer capture. */
+    el.addEventListener('pointermove', function (event) {
+      if (!tracking) return;
+      var dx = event.clientX - startX;
+      var dy = event.clientY - startY;
+      /* Once a gesture leaves tap range it stays a scroll for the rest of
+       * it — a finger that wanders back over the start point mid-scroll must
+       * not suddenly re-arm the tap. */
+      if (dx * dx + dy * dy > TAP_SLOP * TAP_SLOP) tracking = false;
+    });
+
+    el.addEventListener('pointerup', function (event) {
+      if (!tracking) return;
+      tracking = false;
       cue(el);
       handler(event);
     });
+
+    el.addEventListener('pointercancel', function () { tracking = false; });
 
     el.addEventListener('keydown', function (event) {
       if (event.key === 'Enter' || event.key === ' ') {

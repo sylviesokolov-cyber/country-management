@@ -59,6 +59,8 @@
     Mandate.Icons.hydrate();
 
     Mandate.MapView.build(Util.el('map'), onRegionTap);
+    Mandate.MapView.buildLayerSwitch(
+      Util.el('layer-switch'), Util.el('layer-legend'));
     Mandate.Hud.build(onSpeedChange);
     Mandate.Panel.build({ onAction: onRegionAction });
     Mandate.Fullscreen.build();
@@ -107,7 +109,11 @@
       onPickRegion: onPickRegionFromList,
     });
 
-    Mandate.EventUI.build({ onChoose: onEventChoice });
+    Mandate.EventUI.build({
+      onChoose: onEventChoice,
+      /* The run log's rows go to the same place the Regions list does. */
+      onPickRegion: onPickRegionFromList,
+    });
     Mandate.LeaderSelect.build({ onPick: onLeaderPicked });
 
     Mandate.View.onTap(Util.el('veil-restart'), function () {
@@ -257,15 +263,18 @@
    * leader's opening resources under another leader's rules would be a bug
    * nobody would ever find.
    */
-  function onLeaderPicked(leaderId) {
+  function onLeaderPicked(leaderId, setup) {
     Mandate.Audio.sfx('leader');
     Mandate.Audio.reset();
     Mandate.Audio.setScene('run');
     Mandate.State.clearSave();
-    state = Mandate.State.createNewGame(leaderId);
+    state = Mandate.State.createNewGame(leaderId, setup);
     Mandate.Sim.refresh(state);
     Mandate.Sim.log(state, 'system',
-      Mandate.LEADERS.byId(leaderId).title + ' takes office.');
+      Mandate.LEADERS.byId(leaderId).title + ' takes office for ' +
+      Mandate.SETUP.term(state.setup.termId).label.toLowerCase() + ', on ' +
+      Mandate.SETUP.difficulty(state.setup.difficultyId).label.toLowerCase() +
+      '.');
 
     loop.state = state;
     loop.resetClock();
@@ -464,7 +473,7 @@
 
     [
       ['Days in office',
-        Util.formatInt(s.day) + ' of ' + Util.formatInt(Mandate.BALANCE.mandate.termDays) +
+        Util.formatInt(s.day) + ' of ' + Util.formatInt(Mandate.Sim.termDays(s)) +
         '  (' + years + ' years)'],
       ['Left office', Util.formatDate(Util.dateFromDay(startDate, s.day))],
       ['National stability', Math.round(s.derived.nationalStability) + '%'],

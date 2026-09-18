@@ -785,7 +785,8 @@
       Sim.log(state, flippedRegion.inRevolt ? 'revolt' : 'order',
         flippedRegion.inRevolt
           ? name + ' has risen in open revolt. It will not be governed from a chequebook.'
-          : 'Order restored in ' + name + '.');
+          : 'Order restored in ' + name + '.',
+        flippedRegion.id);
       if (flippedRegion.inRevolt) state.stats.revoltsStarted += 1;
     }
 
@@ -827,10 +828,23 @@
           ? 'Your mandate ran out with ' + state.derived.unstableRegions +
             ' region' + (state.derived.unstableRegions === 1 ? '' : 's') + ' in unrest.'
           : 'Your mandate ran out. The country was calm; your term was not.');
-    } else if (state.day >= B.mandate.termDays) {
+    } else if (state.day >= Sim.termDays(state)) {
       endRun(state, true,
-        'Ten years, start to finish. The country you hand over is the one you made.');
+        Math.round(Sim.termDays(state) / 365) + ' years, start to finish. ' +
+        'The country you hand over is the one you made.');
     }
+  };
+
+  /**
+   * How many days this run's term lasts — the win condition.
+   *
+   * One function, because three places need the answer (the win check above,
+   * the end-of-term summary and the harness) and they must never disagree
+   * about how long a term is. The number comes from the run's own setup, so
+   * a save always knows the rules it was played under.
+   */
+  Sim.termDays = function (state) {
+    return Mandate.SETUP.termDays(state && state.setup);
   };
 
   /**
@@ -1757,9 +1771,20 @@
    * every autosave. The oldest go first: what a player reads back is the
    * recent past.
    */
-  Sim.log = function (state, kind, text) {
+  /**
+   * Write a line of history.
+   *
+   * `regionId` is optional and is the only part of an entry the UI acts on
+   * rather than prints: a line that names a province becomes a row you can
+   * tap to go there. It is stored rather than parsed back out of `text`,
+   * because "which province is this about" is something the caller knows for
+   * certain and a reader of the sentence can only guess at.
+   */
+  Sim.log = function (state, kind, text, regionId) {
     if (!state.log) state.log = [];
-    state.log.push({ day: state.day, kind: kind, text: text });
+    var entry = { day: state.day, kind: kind, text: text };
+    if (regionId) entry.regionId = regionId;
+    state.log.push(entry);
     var max = Mandate.BALANCE.log.maxEntries;
     if (state.log.length > max) state.log.splice(0, state.log.length - max);
   };
@@ -2073,7 +2098,8 @@
     }
 
     Sim.log(state, 'event',
-      Sim.fillText(state, choice.log || event.title, pending.regionId));
+      Sim.fillText(state, choice.log || event.title, pending.regionId),
+      pending.regionId);
     state.stats.eventsResolved += 1;
     state.events.pending = null;
 

@@ -52,7 +52,7 @@
   Settings.update = function (state) {
     if (!liveEls.day) return;
     View.setText(liveEls.day, Mandate.Util.formatInt(state.day) + ' of ' +
-      Mandate.Util.formatInt(Mandate.BALANCE.mandate.termDays));
+      Mandate.Util.formatInt(Mandate.Sim.termDays(state)));
     View.setText(liveEls.mandate, Math.round(state.mandate) + ' of ' +
       Mandate.BALANCE.mandate.max);
   };
@@ -230,7 +230,7 @@
 
     fact(list, 'Leader', leader ? leader.title : '\u2014');
     liveEls.day = fact(list, 'Day', Mandate.Util.formatInt(state.day) + ' of ' +
-      Mandate.Util.formatInt(Mandate.BALANCE.mandate.termDays));
+      Mandate.Util.formatInt(Mandate.Sim.termDays(state)));
     liveEls.mandate = fact(list, 'Mandate', Math.round(state.mandate) + ' of ' +
       Mandate.BALANCE.mandate.max);
     fact(list, 'Save format', 'v' + Mandate.State.SCHEMA_VERSION +

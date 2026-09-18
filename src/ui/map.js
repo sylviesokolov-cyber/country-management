@@ -39,6 +39,82 @@
    * "filling up" at a glance and few enough that the SVG is touched rarely. */
   var UNREST_STEPS = 4;
 
+
+  /* ------------------------------------------------------------------------
+   * DATA LAYERS — the same map, asked a different question.
+   *
+   * The map has always painted stability, which is the right default: it is
+   * what the Mandate meter charges for and what a revolt grows out of. But it
+   * meant two of the three numbers that decide a region's worth were invisible
+   * on the one screen the player spends the whole game looking at. Which
+   * provinces have actually been built, and which ones actually PAY, could
+   * only be answered by opening sixteen panels or reading a list.
+   *
+   * This is the oldest idea in strategy-game UI — Civ has had map overlays
+   * since the first one — and it costs almost nothing here, because every
+   * layer reuses the SAME five-band ramp: one class per region, already
+   * regraded to separate in greyscale and already gradient-filled. A layer is
+   * therefore just a different function from a region to a band id.
+   *
+   * `share` returns 0..1 and is bucketed into the five bands, so green always
+   * means "the good end of this question" whatever the question is.
+   * ---------------------------------------------------------------------- */
+  var LAYERS = [
+    {
+      id: 'stability',
+      label: 'Stability',
+      icon: 'stability',
+      legend: 'Order and consent \u2014 what the meter charges for.',
+      /* The one layer that does NOT bucket a share: stability has authored
+       * thresholds in BALANCE (secure at 80, crisis under 20) and those are
+       * the numbers the rest of the game is written against. */
+      bandOf: function (state, region) {
+        return Mandate.Sim.stabilityBand(region).id;
+      },
+    },
+    {
+      id: 'development',
+      label: 'Development',
+      icon: 'invest',
+      legend: 'What is built, against what each can hold.',
+      bandOf: function (state, region) {
+        var cap = Mandate.Sim.developmentCap(state, region);
+        return bandForShare(cap > 0 ? region.development / cap : 0);
+      },
+    },
+    {
+      id: 'output',
+      label: 'Output',
+      icon: 'treasury',
+      legend: 'What each pays, against your best province.',
+      /* Relative to the best region rather than to an absolute scale,
+       * because the question this layer answers is "which of MY provinces
+       * carry this country" — and against an absolute scale every region is
+       * red for the first two years and the layer says nothing. */
+      bandOf: function (state, region) {
+        var best = 0;
+        for (var i = 0; i < state.regions.length; i++) {
+          if (state.regions[i].output > best) best = state.regions[i].output;
+        }
+        return bandForShare(best > 0 ? region.output / best : 0);
+      },
+    },
+  ];
+
+  /* Which layer is showing. A CAMERA fact, like the selected region — it is
+   * never saved, because it is a question the player is asking right now
+   * rather than anything true about the country. */
+  var activeLayer = LAYERS[0];
+
+  /** Bucket a 0..1 share into the five band ids, best-first. */
+  function bandForShare(share) {
+    var bands = Mandate.BALANCE.stabilityBands;   /* secure -> crisis */
+    if (share >= 0.8) return bands[0].id;
+    if (share >= 0.6) return bands[1].id;
+    if (share >= 0.4) return bands[2].id;
+    if (share >= 0.2) return bands[3].id;
+    return bands[4].id;
+  }
   /**
    * A diagonal hatch for provinces in open revolt.
    *
@@ -298,7 +374,7 @@
       var node = regionNodes[region.id];
       if (!node) continue;
 
-      var band = Mandate.Sim.stabilityBand(region).id;
+      var band = activeLayer.bandOf(state, region);
       if (lastBand[region.id] !== band) {
         if (lastBand[region.id]) node.classList.remove('region--' + lastBand[region.id]);
         node.classList.add('region--' + band);
@@ -352,6 +428,58 @@
       }
       lastSelected = selected;
     }
+  };
+
+  /* ------------------------------------------------------------------------
+   * THE LAYER SWITCHER
+   *
+   * Built here rather than written into index.html for the same reason the
+   * leader grid is: the list of layers lives in this file, and adding a
+   * fourth should not mean editing markup.
+   * ---------------------------------------------------------------------- */
+  Map.buildLayerSwitch = function (railEl, legendEl) {
+    var View = Mandate.View;
+    var buttons = Object.create(null);
+
+    function show(layer) {
+      activeLayer = layer;
+
+      /* Strip the painted band off every region BEFORE clearing the memo.
+       *
+       * render() only removes the old band class when the memo says what it
+       * was, so clearing the memo on its own leaves the old class in place
+       * and adds the new one on top — every region ends up wearing two bands
+       * and the map keeps showing whichever CSS rule happens to win. That is
+       * exactly the bug this looked like on the first run: three layers, one
+       * set of colours. The memo has to be cleared together with the thing it
+       * is a memo OF. */
+      Mandate.BALANCE.stabilityBands.forEach(function (band) {
+        Object.keys(regionNodes).forEach(function (id) {
+          regionNodes[id].classList.remove('region--' + band.id);
+        });
+      });
+      lastBand = Object.create(null);
+      Object.keys(buttons).forEach(function (id) {
+        buttons[id].setAttribute('aria-pressed', id === layer.id ? 'true' : 'false');
+      });
+      View.setText(legendEl, layer.legend);
+      legendEl.dataset.memoKey = 'map-legend';
+    }
+
+    LAYERS.forEach(function (layer) {
+      var btn = View.node('button', 'layer-btn');
+      btn.dataset.sfx = 'tap';
+      if (Mandate.Icons.has(layer.icon)) {
+        btn.appendChild(Mandate.Icons.el(layer.icon, 'layer-btn__icon'));
+      }
+      btn.appendChild(View.node('span', 'layer-btn__label', layer.label));
+      btn.setAttribute('aria-label', 'Show ' + layer.label + ' on the map');
+      View.onTap(btn, function () { show(layer); });
+      buttons[layer.id] = btn;
+      railEl.appendChild(btn);
+    });
+
+    show(activeLayer);
   };
 
   Mandate.MapView = Map;

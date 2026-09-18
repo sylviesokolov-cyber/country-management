@@ -25,7 +25,7 @@
    * renamed, removed). `migrate()` below then decides what to do with older
    * saves. Getting this in from day one is much cheaper than retrofitting it
    * after players have saves worth keeping. */
-  State.SCHEMA_VERSION = 6;
+  State.SCHEMA_VERSION = 7;
   State.SAVE_KEY = 'mandate:save';
 
   /**
@@ -33,7 +33,7 @@
    * Note how everything numeric comes from BALANCE or the region data — there
    * are no magic numbers in this function.
    */
-  State.createNewGame = function (leaderId) {
+  State.createNewGame = function (leaderId, setup) {
     var B = Mandate.BALANCE;
 
     var regions = Mandate.REGIONS.map(function (def) {
@@ -80,6 +80,17 @@
        * never referenced by id anywhere in src/. Defaults to the first leader
        * so that a headless balance run needs no ceremony. */
       leaderId: leaderId || Mandate.LEADERS[0].id,
+
+      /* HOW HARD, AND FOR HOW LONG. Chosen on the leader screen alongside the
+       * leader, and fixed for the run — both are merged into the modifier
+       * table by src/modifiers.js and neither is read by id anywhere in the
+       * simulation. Stored rather than assumed because a save that does not
+       * say which difficulty it was played at is a save whose score means
+       * nothing. */
+      setup: {
+        difficultyId: (setup && setup.difficultyId) || Mandate.SETUP.DEFAULT.difficultyId,
+        termId: (setup && setup.termId) || Mandate.SETUP.DEFAULT.termId,
+      },
 
       /* A run has not STARTED until a leader has actually been chosen.
        *
@@ -501,6 +512,20 @@
       save.schemaVersion = 6;
     }
 
+    /* v6 -> v7: difficulty levels and term lengths arrive. Every save that
+     * exists was played at what is now `standard` over what is now the `full`
+     * term — both baselines carry empty payloads, so stamping them on changes
+     * nothing about the run in progress. That is the whole migration, and it
+     * is why the baselines are empty: a v6 save and a v7 `standard`/`full`
+     * save are the same game, exactly, rather than nearly. */
+    if (save.schemaVersion === 6) {
+      save.setup = {
+        difficultyId: Mandate.SETUP.DEFAULT.difficultyId,
+        termId: Mandate.SETUP.DEFAULT.termId,
+      };
+      save.schemaVersion = 7;
+    }
+
     if (save.schemaVersion !== State.SCHEMA_VERSION) {
       console.warn(
         '[Mandate] save is schema v' + save.schemaVersion +
@@ -524,6 +549,48 @@
    * loading.
    * ---------------------------------------------------------------------- */
 
+  /* ------------------------------------------------------------------------
+   * THE REMEMBERED SETUP
+   *
+   * Which difficulty and term the player last chose, kept OUTSIDE the save
+   * for the same reason the audio mixer is: it is a preference about how they
+   * like to play, not a fact about a run, and it must outlive the run it was
+   * chosen for. A blocked or empty localStorage gives the baseline, which is
+   * the right answer for a first-time player anyway.
+   * ---------------------------------------------------------------------- */
+  var SETUP_KEY = 'mandate.setup.v1';
+
+  State.loadSetup = function () {
+    var fallback = {
+      difficultyId: Mandate.SETUP.DEFAULT.difficultyId,
+      termId: Mandate.SETUP.DEFAULT.termId,
+    };
+    try {
+      var parsed = JSON.parse(window.localStorage.getItem(SETUP_KEY));
+      if (!parsed || typeof parsed !== 'object') return fallback;
+      /* Run both through the lookups, which fall back on an unknown id. A
+       * stored difficulty that a later version removed must not strand the
+       * player on a leader screen whose buttons all look unselected. */
+      return {
+        difficultyId: Mandate.SETUP.difficulty(parsed.difficultyId).id,
+        termId: Mandate.SETUP.term(parsed.termId).id,
+      };
+    } catch (err) {
+      return fallback;
+    }
+  };
+
+  State.saveSetup = function (setup) {
+    try {
+      window.localStorage.setItem(SETUP_KEY, JSON.stringify({
+        difficultyId: setup.difficultyId,
+        termId: setup.termId,
+      }));
+    } catch (err) {
+      /* Losing a preference is not worth a word to the player. */
+    }
+  };
+
   State.loadBestScores = function () {
     try {
       var raw = window.localStorage.getItem(Mandate.BALANCE.scoring.bestScoresKey);
@@ -542,10 +609,14 @@
    */
   State.recordBestScore = function (state) {
     var best = State.loadBestScores();
-    var previous = best[state.leaderId];
+    /* Keyed by leader AND setup: a short Steady term and a full Hard one are
+     * not the same quantity, and sharing a slot would report a personal best
+     * set under rules the player is not currently playing. */
+    var key = Mandate.SETUP.scoreKey(state.leaderId, state.setup);
+    var previous = best[key];
     if (previous && previous.score >= state.score) return false;
 
-    best[state.leaderId] = {
+    best[key] = {
       score: state.score,
       days: state.day,
       won: state.won,
