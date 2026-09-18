@@ -173,6 +173,17 @@
          they have earned it. See the header of src/ui/alerts.js. -->
     <div class="toasts" id="toasts" aria-live="polite"></div>
 
+    <!-- left rail: which of the three region numbers the map is painting.
+         Filled by src/ui/map.js, which owns the list of layers. -->
+    <div class="hud-leftrail layer-switch glass">
+      <div class="layer-switch__buttons" id="layer-switch"
+           role="group" aria-label="Map layer"></div>
+      <!-- Inside the card, not floating over the map: a bare caption sat on
+           top of a bright region and over the region labels, and was
+           unreadable against both. -->
+      <p class="layer-legend" id="layer-legend"></p>
+    </div>
+
     <!-- bottom-left: opens the full-screen management overlay -->
     <button class="hud-bottomleft corner-btn" id="btn-ministry" data-sfx="open">
       <span class="corner-btn__icon" data-icon="ministry" aria-hidden="true"></span>
