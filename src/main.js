@@ -464,7 +464,7 @@
 
     [
       ['Days in office',
-        Util.formatInt(s.day) + ' of ' + Util.formatInt(Mandate.BALANCE.mandate.termDays) +
+        Util.formatInt(s.day) + ' of ' + Util.formatInt(Mandate.Sim.termDays(s)) +
         '  (' + years + ' years)'],
       ['Left office', Util.formatDate(Util.dateFromDay(startDate, s.day))],
       ['National stability', Math.round(s.derived.nationalStability) + '%'],

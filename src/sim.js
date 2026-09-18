@@ -827,10 +827,23 @@
           ? 'Your mandate ran out with ' + state.derived.unstableRegions +
             ' region' + (state.derived.unstableRegions === 1 ? '' : 's') + ' in unrest.'
           : 'Your mandate ran out. The country was calm; your term was not.');
-    } else if (state.day >= B.mandate.termDays) {
+    } else if (state.day >= Sim.termDays(state)) {
       endRun(state, true,
-        'Ten years, start to finish. The country you hand over is the one you made.');
+        Math.round(Sim.termDays(state) / 365) + ' years, start to finish. ' +
+        'The country you hand over is the one you made.');
     }
+  };
+
+  /**
+   * How many days this run's term lasts — the win condition.
+   *
+   * One function, because three places need the answer (the win check above,
+   * the end-of-term summary and the harness) and they must never disagree
+   * about how long a term is. The number comes from the run's own setup, so
+   * a save always knows the rules it was played under.
+   */
+  Sim.termDays = function (state) {
+    return Mandate.SETUP.termDays(state && state.setup);
   };
 
   /**

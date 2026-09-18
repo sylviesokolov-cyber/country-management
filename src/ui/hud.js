@@ -129,7 +129,7 @@
      * it: "Year 8 of 10" changes what you do with your last Political Capital
      * in a way that a date alone never will. Years, not days, because the
      * decision it informs is a coarse one. */
-    var termYears = Math.ceil(B.mandate.termDays / 365);
+    var termYears = Math.ceil(Mandate.Sim.termDays(state) / 365);
     var year = Math.min(termYears, Math.floor(state.day / 365) + 1);
     View.setText(els.term, 'Year ' + year + ' of ' + termYears);
 

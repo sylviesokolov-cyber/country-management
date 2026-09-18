@@ -141,7 +141,15 @@
   function buildNational(state) {
     var table = blank();
 
-    /* --- the leader, first ---
+    /* --- the run's setup, before anything else ---
+     * Difficulty and term length are two more payloads, merged the same way
+     * as everything below. That is the entire implementation of difficulty
+     * in this game: no branch reads `state.setup` in src/sim.js, and a
+     * fourth difficulty is an object in data/setup.js. */
+    Mandate.SETUP.payloads(state.setup)
+      .forEach(function (payload) { apply(table, payload); });
+
+    /* --- the leader, next ---
      * Their buff, handicap and mechanic are three ordinary payloads. Being
      * first in the merge means nothing (addition and multiplication don't
      * care), but it reads correctly: this is who you are, and everything
